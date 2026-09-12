@@ -1,14 +1,38 @@
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 import { useGame } from "../../providers/GameProvider";
 import { playSfx } from "../../lib/audio/gameAudio";
-import { LeaderboardPanel } from "./LeaderboardPanel";
 
 export function GameOverOverlay() {
-  const { run, combatScore, sectorKills, restartRun, captain, backend } = useGame();
+  const {
+    run,
+    combatScore,
+    sectorKills,
+    restartRun,
+    returnToMenu,
+    captain,
+    backend,
+    leaderboard,
+  } = useGame();
 
   const retry = useCallback(() => {
     void restartRun();
   }, [restartRun]);
+
+  const goMenu = useCallback(() => {
+    returnToMenu();
+  }, [returnToMenu]);
+
+  const placement = useMemo(() => {
+    if (backend !== "convex" || !captain?.name) return null;
+    const match = leaderboard.find(
+      (entry) =>
+        entry.displayName === captain.name && entry.score === combatScore,
+    );
+    if (match) return match.rank;
+    const byScore = leaderboard.findIndex((entry) => entry.score <= combatScore);
+    if (byScore === -1 && combatScore > 0) return leaderboard.length + 1;
+    return byScore >= 0 ? byScore + 1 : null;
+  }, [backend, captain?.name, combatScore, leaderboard]);
 
   useEffect(() => {
     if (run?.status !== "ended") return;
@@ -58,14 +82,19 @@ export function GameOverOverlay() {
             <dd>{run.jumpsCompleted}</dd>
           </div>
         </dl>
-        {backend === "convex" ? (
-          <div className="stagger-item">
-            <LeaderboardPanel />
-          </div>
+        {placement ? (
+          <p className="gameover-rank stagger-item">
+            You placed #{placement} on the relay board.
+          </p>
         ) : null}
-        <button type="button" className="onboarding-cta stagger-item" onClick={retry}>
-          Try again
-        </button>
+        <div className="gameover-actions stagger-item">
+          <button type="button" className="onboarding-cta" onClick={retry}>
+            Try again
+          </button>
+          <button type="button" className="onboarding-skip" onClick={goMenu}>
+            Main menu
+          </button>
+        </div>
       </div>
     </div>
   );

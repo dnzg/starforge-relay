@@ -15,6 +15,14 @@ export function getSharedMicStream(): MediaStream | null {
   return isLive(sharedStream) ? sharedStream : null;
 }
 
+export function disableMic(): void {
+  if (!sharedStream) return;
+  for (const track of sharedStream.getAudioTracks()) {
+    track.stop();
+  }
+  sharedStream = null;
+}
+
 export async function ensureMicStream(): Promise<MediaStream> {
   if (isLive(sharedStream)) return sharedStream;
   if (pending) return pending;

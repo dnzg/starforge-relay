@@ -30,6 +30,7 @@ import { HYPERSPACE_MS } from "../lib/game/hyperspace";
 import { playSfx } from "../lib/audio/gameAudio";
 import { writeHull } from "../lib/combat/arcadeUiRef";
 import {
+  captainDisplayName,
   loadCaptainProfile,
   type CaptainGender,
   type CaptainProfile,
@@ -38,6 +39,7 @@ import { getConvexClient, getConvexUrl } from "../lib/convex/client";
 import type { RunState } from "../lib/game/types";
 
 type TexturePhase = "ready" | "generating" | "cached" | "procedural";
+export type GamePhase = "menu" | "playing";
 
 interface GameContextValue {
   run: RunState | null;
@@ -62,9 +64,12 @@ interface GameContextValue {
   triggerSectorJump: () => Promise<void>;
   restartRun: () => Promise<void>;
   markPlanetTextureReady: () => void;
+  phase: GamePhase;
   captain: CaptainProfile | null;
   suggestedName: string;
-  completeCaptainSetup: (name: string, gender: CaptainGender) => void;
+  beginRun: () => Promise<void>;
+  returnToMenu: () => void;
+  updateCaptainProfile: (name: string, gender: CaptainGender) => void;
 }
 
 const GameContext = createContext<GameContextValue | null>(null);
@@ -106,7 +111,7 @@ function GameProviderCore({
   const [localSectorKills, setLocalSectorKills] = useState(0);
   const [jumpGateUnlocked, setJumpGateUnlocked] = useState(false);
   const [skyTextureUrl, setSkyTextureUrl] = useState<string | null>(null);
-  const [started, setStarted] = useState(false);
+  const [phase, setPhase] = useState<GamePhase>("menu");
   const [captain, setCaptain] = useState<CaptainProfile | null>(() =>
     loadCaptainProfile(),
   );
@@ -139,15 +144,37 @@ function GameProviderCore({
     writeHull(client.run?.hull ?? 100);
   }, [client.run?.hull]);
 
-  useEffect(() => {
-    if (started || !captain) return;
-    setStarted(true);
-    void client.startRun(captain.name || displayName, telegramId);
-  }, [captain, client, displayName, started, telegramId]);
+  const playerName = useCallback(() => {
+    return captainDisplayName(captain, displayName);
+  }, [captain, displayName]);
 
-  const completeCaptainSetup = useCallback((name: string, gender: CaptainGender) => {
-    const profile = { name, gender };
-    setCaptain(profile);
+  const updateCaptainProfile = useCallback((name: string, gender: CaptainGender) => {
+    setCaptain({ name, gender });
+  }, []);
+
+  const beginRun = useCallback(async () => {
+    setPhase("playing");
+    jumpPendingRef.current = false;
+    setHyperspaceActive(false);
+    setLocalCombatScore(0);
+    sectorKillsRef.current = 0;
+    setLocalSectorKills(0);
+    setJumpGateUnlocked(false);
+    toldRef.current = { firstBlood: false, hullLow: false, gate: false };
+    loadedSectorKeyRef.current = null;
+    await client.startRun(playerName(), telegramId);
+  }, [client, playerName, telegramId]);
+
+  const returnToMenu = useCallback(() => {
+    setPhase("menu");
+    jumpPendingRef.current = false;
+    setHyperspaceActive(false);
+    setLocalCombatScore(0);
+    sectorKillsRef.current = 0;
+    setLocalSectorKills(0);
+    setJumpGateUnlocked(false);
+    toldRef.current = { firstBlood: false, hullLow: false, gate: false };
+    loadedSectorKeyRef.current = null;
   }, []);
 
   const beginHyperspaceTransition = useCallback(() => {
@@ -276,8 +303,8 @@ function GameProviderCore({
     setJumpGateUnlocked(false);
     toldRef.current = { firstBlood: false, hullLow: false, gate: false };
     loadedSectorKeyRef.current = null;
-    await client.startRun(captain.name || displayName, telegramId);
-  }, [captain, client, displayName, telegramId]);
+    await client.startRun(playerName(), telegramId);
+  }, [client, playerName, telegramId]);
 
   useEffect(() => {
     if (client.backend === "convex") {
@@ -304,7 +331,7 @@ function GameProviderCore({
           setLocalCombatScore((prev) => prev + snapshot.kills * 100);
           if (wasZero && !toldRef.current.firstBlood) {
             toldRef.current.firstBlood = true;
-            const name = captain?.name ?? "Captain";
+            const name = playerName();
             void client.appendShipMessage(
               "combat",
               `First hull cracked, ${name}. Keep the nose on the next one.`,
@@ -324,7 +351,7 @@ function GameProviderCore({
           const killsNow = prevKills + snapshot.kills;
           if (prevKills === 0 && !toldRef.current.firstBlood) {
             toldRef.current.firstBlood = true;
-            const name = captain?.name ?? "Captain";
+            const name = playerName();
             void client.appendShipMessage(
               "combat",
               `First hull cracked, ${name}. Keep the nose on the next one.`,
@@ -345,7 +372,7 @@ function GameProviderCore({
       if (snapshot.damage > 0) {
         client.applyCombatDamage(snapshot.damage);
         if (client.run?.status === "ended") {
-          const name = captain?.name ?? "Captain";
+          const name = playerName();
           void client.appendShipMessage(
             "combat",
             `Hull gone, ${name}. I pulled the log. The ship did not make it.`,
@@ -376,7 +403,7 @@ function GameProviderCore({
     }, COMBAT_FLUSH_MS);
 
     return () => window.clearInterval(interval);
-  }, [captain?.name, client, triggerSectorJump]);
+  }, [client, playerName, triggerSectorJump]);
 
   const sendCommand = useCallback(
     async (
@@ -444,9 +471,12 @@ function GameProviderCore({
     triggerSectorJump,
     restartRun,
     markPlanetTextureReady,
+    phase,
     captain,
     suggestedName: displayName,
-    completeCaptainSetup,
+    beginRun,
+    returnToMenu,
+    updateCaptainProfile,
   };
 
   return <GameContext.Provider value={value}>{children}</GameContext.Provider>;

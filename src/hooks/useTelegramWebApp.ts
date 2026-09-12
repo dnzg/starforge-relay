@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { resolveSuggestedCallsign } from "../lib/game/captainProfile";
 import { TELEGRAM_THEME_BG } from "../lib/telegram/haptics";
 import type { TelegramWebApp, TelegramWebAppUser } from "../types/telegram";
 
@@ -33,11 +34,7 @@ export function useTelegramWebApp(): TelegramContext {
   return useMemo(() => {
     const webApp = window.Telegram?.WebApp ?? null;
     const user = webApp?.initDataUnsafe?.user ?? null;
-    const displayName = user
-      ? [user.first_name, user.last_name].filter(Boolean).join(" ") ||
-        user.username ||
-        "Captain"
-      : "Captain";
+    const displayName = resolveSuggestedCallsign(user);
 
     return {
       isTelegram: Boolean(webApp?.initData),
