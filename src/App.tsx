@@ -1,11 +1,23 @@
-import { CockpitScene } from "./components/scene/CockpitScene";
+import { useRef } from "react";
+import { ArcadeScene } from "./components/scene/ArcadeScene";
 import { HUD } from "./components/hud/HUD";
 import { useTelegramWebApp } from "./hooks/useTelegramWebApp";
+import { useArcadeInput } from "./hooks/useArcadeInput";
 import { GameProvider, useGame } from "./providers/GameProvider";
 
 function GameShell() {
-  const { run, hyperspaceActive } = useGame();
+  const {
+    run,
+    hyperspaceActive,
+    combatCallbacks,
+  } = useGame();
   const { isTelegram } = useTelegramWebApp();
+  const combatEnabled = Boolean(run && run.status === "active");
+  const arcadeInput = useArcadeInput(combatEnabled);
+  const getInputRef = useRef(arcadeInput.getState);
+  getInputRef.current = arcadeInput.getState;
+
+  const sectorKey = run ? `${run.id}:${run.sectorSeed}` : "boot";
 
   return (
     <div className="app-shell">
@@ -16,12 +28,20 @@ function GameShell() {
       ) : null}
 
       <div className="viewport">
-        <CockpitScene
+        <ArcadeScene
           sectorSeed={run?.sectorSeed ?? 42}
+          sectorKey={sectorKey}
           planetTextureUrl={run?.planetTextureUrl}
           hyperspaceActive={hyperspaceActive}
+          threatLevel={run?.threatLevel ?? 3}
+          combatEnabled={combatEnabled}
+          getInput={() => getInputRef.current()}
+          combatCallbacks={combatCallbacks}
         />
-        <HUD />
+        <HUD
+          onTouchMove={arcadeInput.setTouchMove}
+          onTouchFire={arcadeInput.setTouchFire}
+        />
       </div>
     </div>
   );

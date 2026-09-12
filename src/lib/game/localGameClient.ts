@@ -15,6 +15,8 @@ function nextRunId(): string {
 export function createLocalGameClient(): GameClient & {
   subscribe: (listener: () => void) => () => void;
   setPlanetTextureUrl: (url: string | null | undefined) => void;
+  applyCombatDamage: (damage: number) => void;
+  awardCombatKill: (credits: number) => void;
   appendShipMessage: (
     heardText: string,
     shipReply: string,
@@ -48,6 +50,36 @@ export function createLocalGameClient(): GameClient & {
     setPlanetTextureUrl(url: string | null | undefined) {
       if (!run) return;
       run = { ...run, planetTextureUrl: url ?? undefined };
+      notify();
+    },
+
+    applyCombatDamage(damage: number) {
+      if (!run || run.status !== "active") return;
+      let shields = run.shields;
+      let hull = run.hull;
+      let remaining = damage;
+      if (shields > 0) {
+        const absorbed = Math.min(shields, remaining);
+        shields -= absorbed;
+        remaining -= absorbed;
+      }
+      hull = Math.max(0, hull - remaining);
+      run = {
+        ...run,
+        shields,
+        hull,
+        status: hull <= 0 ? "ended" : run.status,
+      };
+      notify();
+    },
+
+    awardCombatKill(credits: number) {
+      if (!run || run.status !== "active") return;
+      run = {
+        ...run,
+        credits: run.credits + credits,
+        threatLevel: Math.max(1, run.threatLevel - 1),
+      };
       notify();
     },
 

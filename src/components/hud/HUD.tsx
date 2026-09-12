@@ -5,8 +5,14 @@ import { StatusPanel } from "./StatusPanel";
 import { TranscriptPanel } from "./TranscriptPanel";
 import { CommandInput } from "./CommandInput";
 import { MicButton } from "./MicButton";
+import { TouchControls } from "./TouchControls";
 
-export function HUD() {
+interface HUDProps {
+  onTouchMove: (x: number, y: number) => void;
+  onTouchFire: (active: boolean) => void;
+}
+
+export function HUD({ onTouchMove, onTouchFire }: HUDProps) {
   const { run, loading, sendCommand, appendShipMessage } = useGame();
   const disabled = loading || !run || run.status !== "active";
 
@@ -34,29 +40,34 @@ export function HUD() {
 
   return (
     <div className="hud-overlay">
-      <header className="hud-topbar">
+      <header className="hud-topbar hud-topbar-compact">
         <div>
           <p className="eyebrow">Starforge Relay</p>
-          <h1>Command Bridge</h1>
+          <h1>Sector Combat</h1>
         </div>
-        <p className="run-status">
-          {run ? `Run: ${run.status.toUpperCase()}` : "Booting..."}
-        </p>
+        <StatusPanel compact />
       </header>
 
-      <div className="hud-grid">
-        <StatusPanel />
-        <div className="hud-center-spacer" aria-hidden="true" />
-        <TranscriptPanel />
-      </div>
+      <div className="hud-center-spacer" aria-hidden="true" />
 
-      <footer className="hud-controls">
-        <MicButton
-          onVoiceResult={handleVoice}
-          onVoiceMock={handleVoice}
+      <aside className="hud-side-transcript">
+        <TranscriptPanel />
+      </aside>
+
+      <footer className="hud-controls hud-controls-compact">
+        <TouchControls
           disabled={disabled}
+          onMove={onTouchMove}
+          onFire={onTouchFire}
         />
-        <CommandInput onSubmit={handleText} disabled={disabled} />
+        <div className="hud-command-stack">
+          <MicButton
+            onVoiceResult={handleVoice}
+            onVoiceMock={handleVoice}
+            disabled={disabled}
+          />
+          <CommandInput onSubmit={handleText} disabled={disabled} />
+        </div>
       </footer>
     </div>
   );

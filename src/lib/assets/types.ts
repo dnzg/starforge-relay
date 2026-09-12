@@ -4,6 +4,7 @@ export interface SectorArtResult {
   placeholder: boolean;
   prompt: string;
   error?: string;
+  cached?: boolean;
   metadata: {
     model: string;
     generatedAt: number;
