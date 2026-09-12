@@ -15,13 +15,22 @@ export interface Projectile {
   owner: ProjectileOwner;
 }
 
+export const ENEMY_KINDS = ["interceptor", "gunship", "drone"] as const;
+export type EnemyKind = (typeof ENEMY_KINDS)[number];
+export type AttackPattern = "chase" | "strafe_orbit" | "sniper_hover";
+
 export interface Enemy {
   id: number;
+  kind: EnemyKind;
   position: Vec2;
   rotation: number;
   hp: number;
   speed: number;
+  radius: number;
+  heading: number;
   strafePhase: number;
+  orbitDir: 1 | -1;
+  preferredRange: number;
   fireCooldown: number;
 }
 
