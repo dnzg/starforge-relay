@@ -29,6 +29,12 @@ export interface PlayerState {
 export interface CombatCallbacks {
   onEnemyKilled: () => void;
   onPlayerHit: (damage: number) => void;
+  onJumpGateEnter: () => void;
+}
+
+export interface JumpGateState {
+  active: boolean;
+  position: Vec2;
 }
 
 export interface ArcadeGameRefs {

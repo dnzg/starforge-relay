@@ -1,4 +1,4 @@
-import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import { useTexture } from "@react-three/drei";
 import * as THREE from "three";
@@ -103,25 +103,28 @@ function TexturedPlanet({
 }) {
   const texture = useTexture(textureUrl);
   const materialRef = useRef<THREE.MeshStandardMaterial>(null);
-  const [opacity, setOpacity] = useState(0);
+  const opacityRef = useRef(0);
   const appliedRef = useRef(false);
 
   useEffect(() => {
     texture.colorSpace = THREE.SRGBColorSpace;
     texture.anisotropy = 8;
-    setOpacity(0);
+    opacityRef.current = 0;
     appliedRef.current = false;
+    if (materialRef.current) {
+      materialRef.current.opacity = 0;
+      materialRef.current.transparent = true;
+    }
   }, [texture, textureUrl]);
 
   useFrame((_, delta) => {
-    if (!materialRef.current) return;
-    if (opacity < 1) {
-      const next = Math.min(1, opacity + delta * 0.9);
-      setOpacity(next);
-      materialRef.current.opacity = next;
-      materialRef.current.transparent = next < 1;
-      materialRef.current.needsUpdate = true;
-      if (next >= 1 && !appliedRef.current) {
+    const material = materialRef.current;
+    if (!material) return;
+    if (opacityRef.current < 1) {
+      opacityRef.current = Math.min(1, opacityRef.current + delta * 0.9);
+      material.opacity = opacityRef.current;
+      material.transparent = opacityRef.current < 1;
+      if (opacityRef.current >= 1 && !appliedRef.current) {
         appliedRef.current = true;
         onTextureApplied?.();
       }

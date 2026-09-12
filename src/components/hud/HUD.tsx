@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 import { useGame } from "../../providers/GameProvider";
 import { interpretVoiceTranscript } from "../../lib/voice";
 import { StatusPanel } from "./StatusPanel";
@@ -6,6 +6,10 @@ import { TranscriptPanel } from "./TranscriptPanel";
 import { CommandInput } from "./CommandInput";
 import { MicButton } from "./MicButton";
 import { TouchControls } from "./TouchControls";
+import { OnboardingOverlay } from "./OnboardingOverlay";
+import { ControlHintStrip } from "./ControlHintStrip";
+import { ObjectiveMarker } from "./ObjectiveMarker";
+import { SectorProgress } from "./SectorProgress";
 
 interface HUDProps {
   onTouchMove: (x: number, y: number) => void;
@@ -13,8 +17,10 @@ interface HUDProps {
 }
 
 export function HUD({ onTouchMove, onTouchFire }: HUDProps) {
-  const { run, loading, sendCommand, appendShipMessage } = useGame();
+  const { run, loading, sendCommand, appendShipMessage, sectorKills } = useGame();
   const disabled = loading || !run || run.status !== "active";
+  const [hintDismissed, setHintDismissed] = useState(false);
+  const showHintStrip = !hintDismissed && sectorKills === 0;
 
   const handleText = useCallback(
     async (command: string) => {
@@ -40,6 +46,8 @@ export function HUD({ onTouchMove, onTouchFire }: HUDProps) {
 
   return (
     <div className="hud-overlay">
+      <OnboardingOverlay onDismiss={() => undefined} />
+      <ObjectiveMarker />
       <header className="hud-topbar hud-topbar-compact">
         <div>
           <p className="eyebrow">Starforge Relay</p>
@@ -48,13 +56,19 @@ export function HUD({ onTouchMove, onTouchFire }: HUDProps) {
         <StatusPanel compact />
       </header>
 
-      <div className="hud-center-spacer" aria-hidden="true" />
+      <div className="hud-center-spacer" aria-hidden="true">
+        <SectorProgress />
+      </div>
 
       <aside className="hud-side-transcript">
         <TranscriptPanel />
       </aside>
 
       <footer className="hud-controls hud-controls-compact">
+        <ControlHintStrip
+          visible={showHintStrip}
+          onDismiss={() => setHintDismissed(true)}
+        />
         <TouchControls
           disabled={disabled}
           onMove={onTouchMove}

@@ -7,8 +7,10 @@ export function StatusPanel({ compact = false }: { compact?: boolean }) {
     backend,
     textureLoading,
     textureStatus,
-    textureCached,
+    texturePhase,
     combatScore,
+    sectorKills,
+    jumpGateUnlocked,
   } = useGame();
 
   if (loading || !run) {
@@ -39,6 +41,10 @@ export function StatusPanel({ compact = false }: { compact?: boolean }) {
         <Stat label="Hull" value={`${run.hull}%`} warn={run.hull < 30} />
         <Stat label="Shields" value={`${run.shields}%`} warn={run.shields < 30} />
         <Stat label="Score" value={`${combatScore}`} />
+        <Stat
+          label="Kills"
+          value={jumpGateUnlocked ? "Gate open" : `${sectorKills}/3`}
+        />
         <Stat label="Credits" value={`${run.credits}`} />
         {!compact ? (
           <>
@@ -55,17 +61,20 @@ export function StatusPanel({ compact = false }: { compact?: boolean }) {
       ) : null}
 
       <p
-        className={`texture-status ${textureLoading ? "texture-loading" : ""} ${textureCached ? "texture-cached" : "texture-generated"}`}
+        className={`texture-status ${textureLoading ? "texture-loading" : ""} ${texturePhase === "cached" ? "texture-cached" : texturePhase === "ready" ? "texture-ready" : "texture-generated"}`}
       >
-        {textureLoading ? "⏳ " : textureCached ? "💾 " : "🪐 "}
+        {textureLoading
+          ? "⏳ Generating…"
+          : texturePhase === "cached"
+            ? "💾 Cached"
+            : texturePhase === "ready"
+              ? "✓ Ready"
+              : texturePhase === "procedural"
+                ? "🪐 Procedural"
+                : "✨ Generated"}
+        {" · "}
         {textureStatus}
       </p>
-
-      {compact ? (
-        <p className="control-hint">
-          WASD / Arrows to fly · Space / Click to fire · Shift boost
-        </p>
-      ) : null}
     </section>
   );
 }

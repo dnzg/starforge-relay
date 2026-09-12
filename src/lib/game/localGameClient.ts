@@ -1,7 +1,10 @@
 import {
   createInitialRun,
+  hashSeed,
+  nextSectorSeed,
   parseCommand,
   resolveCommand,
+  sectorNameFromSeed,
 } from "./commandResolver";
 import type { CommandLogEntry, CommandResult, GameClient, RunState } from "./types";
 
@@ -17,6 +20,8 @@ export function createLocalGameClient(): GameClient & {
   setPlanetTextureUrl: (url: string | null | undefined) => void;
   applyCombatDamage: (damage: number) => void;
   awardCombatKill: (credits: number) => void;
+  respawnInSector: () => void;
+  performSectorJump: () => CommandResult | null;
   appendShipMessage: (
     heardText: string,
     shipReply: string,
@@ -64,13 +69,54 @@ export function createLocalGameClient(): GameClient & {
         remaining -= absorbed;
       }
       hull = Math.max(0, hull - remaining);
+      if (hull <= 0) {
+        run = {
+          ...run,
+          shields: 100,
+          hull: 100,
+          status: "active",
+        };
+      } else {
+        run = { ...run, shields, hull };
+      }
+      notify();
+    },
+
+    respawnInSector() {
+      if (!run) return;
       run = {
         ...run,
-        shields,
-        hull,
-        status: hull <= 0 ? "ended" : run.status,
+        shields: 100,
+        hull: 100,
+        status: "active",
       };
       notify();
+    },
+
+    performSectorJump() {
+      if (!run || run.status !== "active") return null;
+      if (run.fuel < 20) return null;
+
+      const newSeed = nextSectorSeed(run.sectorSeed, run.jumpsCompleted);
+      const newName = sectorNameFromSeed(newSeed);
+      const newThreat = (hashSeed(newSeed) % 8) + 2;
+      run = {
+        ...run,
+        fuel: run.fuel - 20,
+        sectorSeed: newSeed,
+        sectorName: newName,
+        threatLevel: newThreat,
+        scanData: undefined,
+        planetTextureUrl: undefined,
+        jumpsCompleted: run.jumpsCompleted + 1,
+        hyperspaceActive: true,
+      };
+      notify();
+      return {
+        response: `Hyperspace jump complete. Arrived at ${newName}.`,
+        run: { hyperspaceActive: true },
+        hyperspaceTrigger: true,
+      };
     },
 
     awardCombatKill(credits: number) {

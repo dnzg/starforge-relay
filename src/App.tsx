@@ -10,6 +10,7 @@ function GameShell() {
     run,
     hyperspaceActive,
     combatCallbacks,
+    markPlanetTextureReady,
   } = useGame();
   const { isTelegram } = useTelegramWebApp();
   const combatEnabled = Boolean(run && run.status === "active");
@@ -37,6 +38,7 @@ function GameShell() {
           combatEnabled={combatEnabled}
           getInput={() => getInputRef.current()}
           combatCallbacks={combatCallbacks}
+          onPlanetTextureReady={markPlanetTextureReady}
         />
         <HUD
           onTouchMove={arcadeInput.setTouchMove}

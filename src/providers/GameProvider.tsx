@@ -8,11 +8,19 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { generateSectorArt } from "../lib/assets/falSectorArt";
+import {
+  generateSectorArt,
+  peekSectorArtCache,
+  prefetchSectorArt,
+} from "../lib/assets/falSectorArt";
 import { createLocalGameClient } from "../lib/game/localGameClient";
 import type { CommandResult, GameClient, RunState } from "../lib/game/types";
+import { nextSectorSeed } from "../lib/game/commandResolver";
 import { generateSectorPackage } from "../lib/sector/sectorPackage";
 import type { CombatCallbacks } from "../components/scene/arcade/types";
+import { createCombatEventQueue } from "../lib/combat/combatEventQueue";
+
+type TexturePhase = "ready" | "generating" | "cached" | "procedural";
 
 interface GameContextValue extends GameClient {
   hyperspaceActive: boolean;
@@ -20,8 +28,13 @@ interface GameContextValue extends GameClient {
   textureLoading: boolean;
   textureStatus: string;
   textureCached: boolean;
+  texturePhase: TexturePhase;
   combatScore: number;
+  sectorKills: number;
+  jumpGateUnlocked: boolean;
   combatCallbacks: CombatCallbacks;
+  triggerSectorJump: () => Promise<void>;
+  markPlanetTextureReady: () => void;
   appendShipMessage: (
     heardText: string,
     shipReply: string,
@@ -30,6 +43,23 @@ interface GameContextValue extends GameClient {
 }
 
 const GameContext = createContext<GameContextValue | null>(null);
+
+const COMBAT_FLUSH_MS = 150;
+const HYPERSPACE_MS = 1800;
+
+function texturePhaseLabel(phase: TexturePhase, loading: boolean): string {
+  if (loading) return "Generating sector texture…";
+  switch (phase) {
+    case "cached":
+      return "Planet texture: Cached";
+    case "generating":
+      return "Planet texture: Generated";
+    case "procedural":
+      return "Procedural planet (Fal unavailable)";
+    default:
+      return "Planet texture: Ready";
+  }
+}
 
 export function GameProvider({
   children,
@@ -43,11 +73,18 @@ export function GameProvider({
   const [hyperspaceActive, setHyperspaceActive] = useState(false);
   const [lastHyperspaceAt, setLastHyperspaceAt] = useState(0);
   const [textureLoading, setTextureLoading] = useState(false);
-  const [textureStatus, setTextureStatus] = useState("Procedural planet active");
+  const [texturePhase, setTexturePhase] = useState<TexturePhase>("ready");
   const [textureCached, setTextureCached] = useState(false);
   const [combatScore, setCombatScore] = useState(0);
+  const [sectorKills, setSectorKills] = useState(0);
+  const [jumpGateUnlocked, setJumpGateUnlocked] = useState(false);
   const [started, setStarted] = useState(false);
   const loadedSectorKeyRef = useRef<string | null>(null);
+  const combatQueueRef = useRef(createCombatEventQueue());
+  const sectorKillsRef = useRef(0);
+  const jumpPendingRef = useRef(false);
+
+  const textureStatus = texturePhaseLabel(texturePhase, textureLoading);
 
   useEffect(() => {
     return client.subscribe(() => tick((n) => n + 1));
@@ -59,52 +96,62 @@ export function GameProvider({
     void client.startRun(displayName);
   }, [client, displayName, started]);
 
+  const beginHyperspaceTransition = useCallback(() => {
+    setHyperspaceActive(true);
+    setLastHyperspaceAt(Date.now());
+    window.setTimeout(() => setHyperspaceActive(false), HYPERSPACE_MS);
+    loadedSectorKeyRef.current = null;
+    setCombatScore(0);
+    sectorKillsRef.current = 0;
+    setSectorKills(0);
+    setJumpGateUnlocked(false);
+  }, []);
+
   const loadSectorAssets = useCallback(
     async (runState: RunState) => {
       const sectorKey = `${runState.id}:${runState.sectorSeed}`;
       if (loadedSectorKeyRef.current === sectorKey) return;
       loadedSectorKeyRef.current = sectorKey;
 
+      const cachedPeek = peekSectorArtCache(runState.sectorSeed);
+      if (cachedPeek?.textureUrl) {
+        client.setPlanetTextureUrl(cachedPeek.textureUrl);
+        setTextureCached(true);
+        setTexturePhase("cached");
+        setTextureLoading(false);
+        return;
+      }
+
       setTextureLoading(true);
-      setTextureStatus("Loading sector package...");
+      setTexturePhase("generating");
+      client.setPlanetTextureUrl(undefined);
 
       try {
-        const sectorPackage = await generateSectorPackage({
+        await generateSectorPackage({
           runId: runState.id,
           seed: runState.sectorSeed,
           sectorName: runState.sectorName,
           threatLevel: runState.threatLevel,
         });
 
-        const encounterSummary = sectorPackage.sectorJson.encounters
-          .slice(0, 2)
-          .join(", ");
-        setTextureStatus(
-          `Sector data ready (${encounterSummary}). Loading planet texture...`,
-        );
-
         const art = await generateSectorArt(runState.sectorSeed);
         if (art.textureUrl) {
           client.setPlanetTextureUrl(art.textureUrl);
           const cached = art.cached === true;
           setTextureCached(cached);
-          setTextureStatus(
-            cached
-              ? "Planet texture: Cached"
-              : "Planet texture: Generated",
-          );
+          setTexturePhase(cached ? "cached" : "generating");
         } else if (art.error?.includes("FAL_KEY")) {
           client.setPlanetTextureUrl(undefined);
           setTextureCached(false);
-          setTextureStatus("Procedural planet (set FAL_KEY for Fal textures)");
+          setTexturePhase("procedural");
         } else {
           client.setPlanetTextureUrl(undefined);
           setTextureCached(false);
-          setTextureStatus("Procedural planet (texture API unavailable)");
+          setTexturePhase("procedural");
         }
       } catch {
         setTextureCached(false);
-        setTextureStatus("Procedural planet (sector asset load failed)");
+        setTexturePhase("procedural");
       } finally {
         setTextureLoading(false);
       }
@@ -112,10 +159,68 @@ export function GameProvider({
     [client],
   );
 
+  const markPlanetTextureReady = useCallback(() => {
+    setTextureLoading(false);
+    setTexturePhase((prev) => (prev === "procedural" ? prev : "ready"));
+  }, []);
+
   useEffect(() => {
     if (!client.run) return;
     void loadSectorAssets(client.run);
   }, [client.run, loadSectorAssets]);
+
+  useEffect(() => {
+    const run = client.run;
+    if (!run || run.status !== "active") return;
+
+    const nextSeed = nextSectorSeed(run.sectorSeed, run.jumpsCompleted);
+    void prefetchSectorArt(nextSeed);
+  }, [client.run?.sectorSeed, client.run?.jumpsCompleted, client.run?.status]);
+
+  const triggerSectorJump = useCallback(async () => {
+    if (jumpPendingRef.current) return;
+    jumpPendingRef.current = true;
+
+    const result = client.performSectorJump();
+    if (result?.hyperspaceTrigger) {
+      beginHyperspaceTransition();
+      if (client.run) {
+        await loadSectorAssets(client.run);
+      }
+    }
+
+    jumpPendingRef.current = false;
+  }, [beginHyperspaceTransition, client, loadSectorAssets]);
+
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      const snapshot = combatQueueRef.current.flush();
+      if (snapshot.kills === 0 && snapshot.damage === 0 && !snapshot.jumpGateReached) {
+        return;
+      }
+
+      if (snapshot.kills > 0) {
+        for (let i = 0; i < snapshot.kills; i++) {
+          const creditReward = 8 + Math.floor(Math.random() * 6);
+          client.awardCombatKill(creditReward);
+        }
+        sectorKillsRef.current += snapshot.kills;
+        setSectorKills(sectorKillsRef.current);
+        setCombatScore((prev) => prev + snapshot.kills * 100);
+      }
+
+      if (snapshot.damage > 0) {
+        client.applyCombatDamage(snapshot.damage);
+      }
+
+      if (snapshot.jumpGateReached) {
+        setJumpGateUnlocked(true);
+        void triggerSectorJump();
+      }
+    }, COMBAT_FLUSH_MS);
+
+    return () => window.clearInterval(interval);
+  }, [client, triggerSectorJump]);
 
   const sendCommand = useCallback(
     async (
@@ -125,15 +230,14 @@ export function GameProvider({
     ) => {
       const result = await client.sendCommand(command, source, options);
       if (result?.hyperspaceTrigger || result?.run.hyperspaceActive) {
-        setHyperspaceActive(true);
-        setLastHyperspaceAt(Date.now());
-        window.setTimeout(() => setHyperspaceActive(false), 2500);
-        loadedSectorKeyRef.current = null;
-        setCombatScore(0);
+        beginHyperspaceTransition();
+        if (client.run) {
+          await loadSectorAssets(client.run);
+        }
       }
       return result;
     },
-    [client],
+    [beginHyperspaceTransition, client, loadSectorAssets],
   ) as GameClient["sendCommand"];
 
   const appendShipMessage = useCallback(
@@ -149,17 +253,13 @@ export function GameProvider({
 
   const combatCallbacks = useMemo<CombatCallbacks>(
     () => ({
-      onEnemyKilled: () => {
-        const creditReward = 8 + Math.floor(Math.random() * 6);
-        const scoreReward = 100;
-        client.awardCombatKill(creditReward);
-        setCombatScore((prev) => prev + scoreReward);
-      },
+      onEnemyKilled: () => combatQueueRef.current.queueKill(),
       onPlayerHit: (damage: number) => {
-        client.applyCombatDamage(damage);
+        combatQueueRef.current.queueDamage(damage);
       },
+      onJumpGateEnter: () => combatQueueRef.current.queueJumpGate(),
     }),
-    [client],
+    [],
   );
 
   const value: GameContextValue = {
@@ -175,8 +275,13 @@ export function GameProvider({
     textureLoading,
     textureStatus,
     textureCached,
+    texturePhase,
     combatScore,
+    sectorKills,
+    jumpGateUnlocked,
     combatCallbacks,
+    triggerSectorJump,
+    markPlanetTextureReady,
   };
 
   return <GameContext.Provider value={value}>{children}</GameContext.Provider>;
