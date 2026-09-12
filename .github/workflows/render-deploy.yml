@@ -1,0 +1,26 @@
+name: Render deploy
+
+# Render's GitHub auto-deploy is flaky when the GitHub App webhook
+# never attaches. This workflow hits a Deploy Hook on every push to main.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Render deploy hook
+        env:
+          RENDER_DEPLOY_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK }}
+        run: |
+          if [ -z "$RENDER_DEPLOY_HOOK" ]; then
+            echo "Missing GitHub secret RENDER_DEPLOY_HOOK."
+            echo "In Render Dashboard → Service → Settings → Deploy Hook → create hook,"
+            echo "then add the URL as repo secret RENDER_DEPLOY_HOOK."
+            exit 1
+          fi
+          curl -fsS -X POST "$RENDER_DEPLOY_HOOK"
+          echo
+          echo "Deploy hook triggered."
