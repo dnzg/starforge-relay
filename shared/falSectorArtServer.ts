@@ -4,10 +4,24 @@ export interface FalSectorArtPayload {
   placeholder: boolean;
   prompt: string;
   error?: string;
+  cached?: boolean;
   metadata: {
     model: string;
     generatedAt: number;
   };
+}
+
+export interface SectorArtCacheAdapter {
+  read(seed: number): Promise<FalSectorArtPayload | null>;
+  writeFromRemote(
+    seed: number,
+    payload: Omit<FalSectorArtPayload, "cached">,
+    remoteUrl: string,
+  ): Promise<FalSectorArtPayload>;
+  writePlaceholder(
+    seed: number,
+    payload: Omit<FalSectorArtPayload, "cached">,
+  ): Promise<FalSectorArtPayload>;
 }
 
 const FAL_MODEL = "fal-ai/flux/schnell";
@@ -37,6 +51,7 @@ export async function generateFalSectorArtServer(
       placeholder: true,
       prompt,
       error: "FAL_KEY not configured",
+      cached: false,
       metadata: { ...metadata, model: "procedural-placeholder" },
     };
   }
@@ -67,6 +82,7 @@ export async function generateFalSectorArtServer(
         placeholder: true,
         prompt,
         error: `Fal API ${response.status}: ${errorText.slice(0, 180)}`,
+        cached: false,
         metadata,
       };
     }
@@ -81,6 +97,7 @@ export async function generateFalSectorArtServer(
       textureUrl,
       placeholder: !textureUrl,
       prompt,
+      cached: false,
       metadata,
     };
   } catch (error) {
@@ -90,6 +107,7 @@ export async function generateFalSectorArtServer(
       placeholder: true,
       prompt,
       error: error instanceof Error ? error.message : String(error),
+      cached: false,
       metadata,
     };
   }
@@ -98,6 +116,7 @@ export async function generateFalSectorArtServer(
 export async function handleSectorArtRequest(
   body: string,
   falKey?: string,
+  cache?: SectorArtCacheAdapter,
 ): Promise<FalSectorArtPayload> {
   let seed = Math.floor(Math.random() * 1_000_000);
   if (body) {
@@ -110,5 +129,35 @@ export async function handleSectorArtRequest(
       // ignore malformed JSON and use random seed
     }
   }
-  return generateFalSectorArtServer(seed, falKey);
+
+  if (cache) {
+    const cached = await cache.read(seed);
+    if (cached?.textureUrl) {
+      return cached;
+    }
+  }
+
+  const generated = await generateFalSectorArtServer(seed, falKey);
+
+  if (!cache) {
+    return generated;
+  }
+
+  if (generated.textureUrl && !generated.placeholder) {
+    try {
+      return await cache.writeFromRemote(seed, generated, generated.textureUrl);
+    } catch {
+      return generated;
+    }
+  }
+
+  if (generated.placeholder && generated.error?.includes("FAL_KEY")) {
+    return generated;
+  }
+
+  try {
+    return await cache.writePlaceholder(seed, generated);
+  } catch {
+    return generated;
+  }
 }

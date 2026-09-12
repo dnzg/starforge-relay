@@ -12,12 +12,16 @@ import { generateSectorArt } from "../lib/assets/falSectorArt";
 import { createLocalGameClient } from "../lib/game/localGameClient";
 import type { CommandResult, GameClient, RunState } from "../lib/game/types";
 import { generateSectorPackage } from "../lib/sector/sectorPackage";
+import type { CombatCallbacks } from "../components/scene/arcade/types";
 
 interface GameContextValue extends GameClient {
   hyperspaceActive: boolean;
   lastHyperspaceAt: number;
   textureLoading: boolean;
   textureStatus: string;
+  textureCached: boolean;
+  combatScore: number;
+  combatCallbacks: CombatCallbacks;
   appendShipMessage: (
     heardText: string,
     shipReply: string,
@@ -40,6 +44,8 @@ export function GameProvider({
   const [lastHyperspaceAt, setLastHyperspaceAt] = useState(0);
   const [textureLoading, setTextureLoading] = useState(false);
   const [textureStatus, setTextureStatus] = useState("Procedural planet active");
+  const [textureCached, setTextureCached] = useState(false);
+  const [combatScore, setCombatScore] = useState(0);
   const [started, setStarted] = useState(false);
   const loadedSectorKeyRef = useRef<string | null>(null);
 
@@ -60,7 +66,7 @@ export function GameProvider({
       loadedSectorKeyRef.current = sectorKey;
 
       setTextureLoading(true);
-      setTextureStatus("Generating sector package...");
+      setTextureStatus("Loading sector package...");
 
       try {
         const sectorPackage = await generateSectorPackage({
@@ -74,21 +80,30 @@ export function GameProvider({
           .slice(0, 2)
           .join(", ");
         setTextureStatus(
-          `Sector data ready (${encounterSummary}). Rendering planet surface...`,
+          `Sector data ready (${encounterSummary}). Loading planet texture...`,
         );
 
         const art = await generateSectorArt(runState.sectorSeed);
         if (art.textureUrl) {
           client.setPlanetTextureUrl(art.textureUrl);
-          setTextureStatus("Fal planet texture applied");
+          const cached = art.cached === true;
+          setTextureCached(cached);
+          setTextureStatus(
+            cached
+              ? "Planet texture: Cached"
+              : "Planet texture: Generated",
+          );
         } else if (art.error?.includes("FAL_KEY")) {
           client.setPlanetTextureUrl(undefined);
+          setTextureCached(false);
           setTextureStatus("Procedural planet (set FAL_KEY for Fal textures)");
         } else {
           client.setPlanetTextureUrl(undefined);
+          setTextureCached(false);
           setTextureStatus("Procedural planet (texture API unavailable)");
         }
       } catch {
+        setTextureCached(false);
         setTextureStatus("Procedural planet (sector asset load failed)");
       } finally {
         setTextureLoading(false);
@@ -114,6 +129,7 @@ export function GameProvider({
         setLastHyperspaceAt(Date.now());
         window.setTimeout(() => setHyperspaceActive(false), 2500);
         loadedSectorKeyRef.current = null;
+        setCombatScore(0);
       }
       return result;
     },
@@ -131,6 +147,21 @@ export function GameProvider({
     [client],
   );
 
+  const combatCallbacks = useMemo<CombatCallbacks>(
+    () => ({
+      onEnemyKilled: () => {
+        const creditReward = 8 + Math.floor(Math.random() * 6);
+        const scoreReward = 100;
+        client.awardCombatKill(creditReward);
+        setCombatScore((prev) => prev + scoreReward);
+      },
+      onPlayerHit: (damage: number) => {
+        client.applyCombatDamage(damage);
+      },
+    }),
+    [client],
+  );
+
   const value: GameContextValue = {
     run: client.run,
     logs: client.logs,
@@ -143,6 +174,9 @@ export function GameProvider({
     lastHyperspaceAt,
     textureLoading,
     textureStatus,
+    textureCached,
+    combatScore,
+    combatCallbacks,
   };
 
   return <GameContext.Provider value={value}>{children}</GameContext.Provider>;

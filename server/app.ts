@@ -1,3 +1,4 @@
+import { readFile } from "node:fs/promises";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { serveStatic } from "@hono/node-server/serve-static";
@@ -8,9 +9,13 @@ import {
   createXaiEphemeralToken,
 } from "../shared/voiceServer.js";
 import type { ServerEnv } from "./env.js";
+import { SectorArtCache } from "./sectorArtCache.js";
 
 export function createApp(env: ServerEnv) {
   const app = new Hono();
+  const sectorArtCache = new SectorArtCache({
+    cacheDir: env.sectorArtCacheDir,
+  });
 
   app.use("/api/*", cors());
 
@@ -22,16 +27,43 @@ export function createApp(env: ServerEnv) {
     }),
   );
 
+  app.get("/api/sector-art/files/:filename", async (c) => {
+    const filename = c.req.param("filename");
+    if (!/^\d+\.jpg$/.test(filename)) {
+      return c.text("Invalid filename", 400);
+    }
+    const seed = Number.parseInt(filename.replace(".jpg", ""), 10);
+    try {
+      const data = await readFile(sectorArtCache.imagePath(seed));
+      return new Response(data, {
+        headers: {
+          "Content-Type": "image/jpeg",
+          "Cache-Control": "public, max-age=31536000, immutable",
+        },
+      });
+    } catch {
+      return c.notFound();
+    }
+  });
+
   app.post("/api/sector-art", async (c) => {
     const body = await c.req.text();
-    const result = await handleSectorArtRequest(body, env.falKey);
+    const result = await handleSectorArtRequest(
+      body,
+      env.falKey,
+      sectorArtCache,
+    );
     return c.json(result);
   });
 
   app.get("/api/sector-art", async (c) => {
     const seed = c.req.query("seed");
     const body = seed ? JSON.stringify({ seed: Number(seed) }) : "";
-    const result = await handleSectorArtRequest(body, env.falKey);
+    const result = await handleSectorArtRequest(
+      body,
+      env.falKey,
+      sectorArtCache,
+    );
     return c.json(result);
   });
 

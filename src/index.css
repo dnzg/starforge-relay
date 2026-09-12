@@ -61,10 +61,34 @@ body {
   position: absolute;
   inset: 0;
   display: grid;
+  grid-template-columns: 1fr minmax(180px, 260px);
   grid-template-rows: auto 1fr auto;
+  grid-template-areas:
+    "topbar topbar"
+    "center transcript"
+    "controls controls";
   pointer-events: none;
   padding: 0.75rem;
   gap: 0.75rem;
+}
+
+.hud-topbar-compact {
+  grid-area: topbar;
+}
+
+.hud-center-spacer {
+  grid-area: center;
+  pointer-events: none;
+}
+
+.hud-side-transcript {
+  grid-area: transcript;
+  min-height: 0;
+  pointer-events: auto;
+}
+
+.hud-controls-compact {
+  grid-area: controls;
 }
 
 .hud-topbar,
@@ -109,6 +133,100 @@ body {
   grid-template-columns: minmax(220px, 320px) 1fr;
   gap: 0.75rem;
   min-height: 0;
+}
+
+.status-panel-compact {
+  padding: 0.55rem 0.75rem;
+  background: rgba(8, 12, 24, 0.55);
+}
+
+.compact-stats-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.45rem;
+}
+
+.stat-grid-compact {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.control-hint {
+  margin: 0.35rem 0 0;
+  font-size: 0.68rem;
+  color: #64748b;
+}
+
+.texture-cached {
+  color: #86efac;
+}
+
+.texture-generated {
+  color: #93c5fd;
+}
+
+.transcript-panel-compact {
+  max-height: 100%;
+  opacity: 0.92;
+}
+
+.transcript-panel-compact h2 {
+  font-size: 0.78rem;
+  margin-bottom: 0.4rem;
+}
+
+.hud-command-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  min-width: 0;
+}
+
+.touch-controls {
+  display: none;
+  align-items: flex-end;
+  gap: 0.75rem;
+  pointer-events: auto;
+}
+
+.touch-dpad {
+  position: relative;
+  width: 112px;
+  height: 112px;
+  border-radius: 50%;
+  border: 1px solid rgba(125, 211, 252, 0.35);
+  background: rgba(15, 23, 42, 0.55);
+  touch-action: none;
+}
+
+.touch-dpad-ring {
+  position: absolute;
+  inset: 12px;
+  border-radius: 50%;
+  border: 1px dashed rgba(148, 163, 184, 0.35);
+}
+
+.touch-dpad-center {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 0.62rem;
+  letter-spacing: 0.08em;
+  color: #94a3b8;
+  pointer-events: none;
+}
+
+.touch-fire {
+  min-width: 88px;
+  min-height: 88px;
+  border-radius: 50%;
+  border: 1px solid rgba(248, 113, 113, 0.55);
+  background: rgba(127, 29, 29, 0.55);
+  color: #fecaca;
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  touch-action: none;
 }
 
 .hud-panel {
@@ -397,7 +515,28 @@ body {
   }
 
   .hud-controls {
+    grid-template-columns: auto 1fr;
+  }
+
+  .hud-overlay {
     grid-template-columns: 1fr;
+    grid-template-areas:
+      "topbar"
+      "center"
+      "transcript"
+      "controls";
+  }
+
+  .hud-side-transcript {
+    max-height: 120px;
+  }
+
+  .stat-grid-compact {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .touch-controls {
+    display: flex;
   }
 }
 
@@ -408,5 +547,19 @@ body {
 
   .hud-topbar {
     flex-direction: column;
+  }
+
+  .hud-controls-compact {
+    grid-template-columns: 1fr;
+  }
+
+  .control-hint {
+    display: none;
+  }
+}
+
+@media (hover: none) and (pointer: coarse) {
+  .touch-controls {
+    display: flex;
   }
 }

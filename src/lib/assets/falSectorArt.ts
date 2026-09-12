@@ -6,6 +6,8 @@ export interface SectorArtGenerator {
   generateSectorArt: (seed: number) => Promise<SectorArtResult>;
 }
 
+const memoryCache = new Map<number, SectorArtResult>();
+
 function placeholderResult(seed: number, error?: string): SectorArtResult {
   const prompt = [
     "Seamless sci-fi desert planet surface texture map,",
@@ -19,6 +21,7 @@ function placeholderResult(seed: number, error?: string): SectorArtResult {
     placeholder: true,
     prompt,
     error,
+    cached: false,
     metadata: {
       model: "procedural-placeholder",
       generatedAt: Date.now(),
@@ -44,6 +47,7 @@ async function fetchSectorArtFromApi(seed: number): Promise<SectorArtResult> {
     placeholder: payload.placeholder ?? !payload.textureUrl,
     prompt: payload.prompt,
     error: payload.error,
+    cached: payload.cached ?? false,
     metadata: payload.metadata ?? {
       model: "unknown",
       generatedAt: Date.now(),
@@ -60,15 +64,22 @@ export function createFalSectorArtStub(): SectorArtGenerator {
 }
 
 export async function generateSectorArt(seed: number): Promise<SectorArtResult> {
+  const cached = memoryCache.get(seed);
+  if (cached?.textureUrl) {
+    return cached;
+  }
+
   try {
     const result = await fetchSectorArtFromApi(seed);
     if (result.textureUrl) {
+      memoryCache.set(seed, result);
       return result;
     }
     return {
       ...placeholderResult(seed, result.error),
       prompt: result.prompt,
       metadata: result.metadata,
+      cached: result.cached,
     };
   } catch (error) {
     return placeholderResult(
@@ -87,4 +98,8 @@ export function applyTextureUrl(
     textureUrl,
     placeholder: false,
   };
+}
+
+export function clearSectorArtMemoryCache(): void {
+  memoryCache.clear();
 }

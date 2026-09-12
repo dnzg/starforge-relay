@@ -4,6 +4,7 @@ export interface ServerEnv {
   port: number;
   serveStatic: boolean;
   distDir: string;
+  sectorArtCacheDir: string;
 }
 
 export function loadServerEnv(options?: {
@@ -19,5 +20,7 @@ export function loadServerEnv(options?: {
     port,
     serveStatic: !dev,
     distDir: "dist",
+    sectorArtCacheDir:
+      process.env.SECTOR_ART_CACHE_DIR ?? ".cache/sector-art",
   };
 }
