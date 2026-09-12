@@ -4,6 +4,7 @@ import { createBrowserSpeechStub } from "./xaiVoiceStub";
 import { createXaiVoiceEngine } from "./xaiVoiceEngine";
 import {
   fetchVoiceStatus,
+  offlineVoiceStatus,
   resolveHudVoiceLabel,
   type VoiceStatusResponse,
 } from "./voiceApi";
@@ -52,13 +53,7 @@ export function useVoiceRuntime(): VoiceRuntimeState {
 
   return {
     engine,
-    status: status ?? {
-      xaiConfigured: false,
-      xaiRealtimeUrl: "wss://api.x.ai/v1/realtime?model=grok-voice-latest",
-      falConfigured: false,
-      recommended: "text",
-      label: "Voice API offline — text commands available",
-    },
+    status: status ?? offlineVoiceStatus(),
     hudLabel,
     mode,
     loading: !status,

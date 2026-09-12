@@ -5,6 +5,8 @@ export interface ServerEnv {
   serveStatic: boolean;
   distDir: string;
   sectorArtCacheDir: string;
+  shipAvatarCacheDir: string;
+  shipTtsCacheDir: string;
 }
 
 export function loadServerEnv(options?: {
@@ -22,5 +24,8 @@ export function loadServerEnv(options?: {
     distDir: "dist",
     sectorArtCacheDir:
       process.env.SECTOR_ART_CACHE_DIR ?? ".cache/sector-art",
+    shipAvatarCacheDir:
+      process.env.SHIP_AVATAR_CACHE_DIR ?? ".cache/ship-avatar",
+    shipTtsCacheDir: process.env.SHIP_TTS_CACHE_DIR ?? ".cache/ship-tts",
   };
 }

@@ -7,17 +7,31 @@ import {
   handleSectorArtRequest,
   handleShipLiveryRequest,
 } from "../shared/falSectorArtServer.js";
+import { handleShipAvatarRequest } from "../shared/shipAvatarServer.js";
+import {
+  prepareTtsText,
+  silentShipTts,
+  synthesizeShipSpeech,
+} from "../shared/shipTtsServer.js";
 import {
   buildVoiceStatus,
   createXaiEphemeralToken,
 } from "../shared/voiceServer.js";
 import type { ServerEnv } from "./env.js";
 import { SectorArtCache } from "./sectorArtCache.js";
+import { ShipAvatarCache } from "./shipAvatarCache.js";
+import { hashTtsText, ShipTtsCache } from "./shipTtsCache.js";
 
 export function createApp(env: ServerEnv) {
   const app = new Hono();
   const sectorArtCache = new SectorArtCache({
     cacheDir: env.sectorArtCacheDir,
+  });
+  const shipAvatarCache = new ShipAvatarCache({
+    cacheDir: env.shipAvatarCacheDir,
+  });
+  const shipTtsCache = new ShipTtsCache({
+    cacheDir: env.shipTtsCacheDir,
   });
 
   app.use("/api/*", cors());
@@ -27,6 +41,7 @@ export function createApp(env: ServerEnv) {
       ok: true,
       falConfigured: Boolean(env.falKey?.trim()),
       xaiConfigured: Boolean(env.xaiApiKey?.trim()),
+      ttsConfigured: Boolean(env.falKey?.trim() || env.xaiApiKey?.trim()),
     }),
   );
 
@@ -81,6 +96,30 @@ export function createApp(env: ServerEnv) {
     return c.json(result);
   });
 
+  app.get("/api/ship-avatar/file/:filename", async (c) => {
+    const filename = c.req.param("filename");
+    if (!/^[a-z0-9-]+\.jpg$/.test(filename)) {
+      return c.text("Invalid filename", 400);
+    }
+    const key = filename.replace(/\.jpg$/, "");
+    try {
+      const data = await readFile(shipAvatarCache.imagePath(key));
+      return new Response(data, {
+        headers: {
+          "Content-Type": "image/jpeg",
+          "Cache-Control": "public, max-age=31536000, immutable",
+        },
+      });
+    } catch {
+      return c.notFound();
+    }
+  });
+
+  app.get("/api/ship-avatar", async (c) => {
+    const result = await handleShipAvatarRequest(env.falKey, shipAvatarCache);
+    return c.json(result);
+  });
+
   app.get("/api/voice/status", (c) => {
     return c.json(buildVoiceStatus(env.xaiApiKey, env.falKey));
   });
@@ -112,6 +151,88 @@ export function createApp(env: ServerEnv) {
     }
     const result = await interpretVoiceInput(text, env.xaiApiKey, body.context);
     return c.json(result);
+  });
+
+  app.get("/api/voice/tts/:filename", async (c) => {
+    const filename = c.req.param("filename");
+    if (!/^[a-f0-9]{16,64}\.mp3$/.test(filename)) {
+      return c.text("Invalid filename", 400);
+    }
+    const hash = filename.replace(/\.mp3$/, "");
+    try {
+      const data = await readFile(shipTtsCache.audioPath(hash));
+      return new Response(data, {
+        headers: {
+          "Content-Type": "audio/mpeg",
+          "Cache-Control": "public, max-age=31536000, immutable",
+        },
+      });
+    } catch {
+      return c.notFound();
+    }
+  });
+
+  app.post("/api/voice/speak", async (c) => {
+    const body = (await c.req.json().catch(() => ({}))) as { text?: string };
+    const text = prepareTtsText(body.text ?? "");
+    if (!text) {
+      return c.json({ error: "text is required" }, 400);
+    }
+
+    const hash = hashTtsText(text);
+    const cached = await shipTtsCache.read(hash, text);
+    if (cached) {
+      return c.json(cached);
+    }
+
+    const synthesized = await synthesizeShipSpeech(
+      text,
+      env.falKey,
+      env.xaiApiKey,
+    );
+    if (synthesized.provider === "none") {
+      return c.json(silentShipTts(text, synthesized.error));
+    }
+
+    try {
+      if (synthesized.bytes) {
+        return c.json(
+          await shipTtsCache.writeBytes(
+            hash,
+            text,
+            synthesized.bytes,
+            synthesized.provider,
+          ),
+        );
+      }
+      if (synthesized.remoteUrl) {
+        return c.json(
+          await shipTtsCache.writeFromRemote(
+            hash,
+            text,
+            synthesized.remoteUrl,
+            synthesized.provider,
+          ),
+        );
+      }
+    } catch (error) {
+      if (synthesized.remoteUrl) {
+        return c.json({
+          audioUrl: synthesized.remoteUrl,
+          provider: synthesized.provider,
+          cached: false,
+          text,
+        });
+      }
+      return c.json(
+        silentShipTts(
+          text,
+          error instanceof Error ? error.message : "TTS cache write failed",
+        ),
+      );
+    }
+
+    return c.json(silentShipTts(text, synthesized.error));
   });
 
   if (env.serveStatic) {

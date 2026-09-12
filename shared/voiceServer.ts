@@ -6,6 +6,8 @@ export interface VoiceStatusPayload {
   xaiConfigured: boolean;
   xaiRealtimeUrl: string;
   falConfigured: boolean;
+  ttsConfigured: boolean;
+  ttsProvider: "fal" | "xai" | "none";
   recommended: "xai" | "browser" | "text";
   label: string;
 }
@@ -20,12 +22,16 @@ export interface VoiceTokenPayload {
 export function buildVoiceStatus(xaiApiKey?: string, falKey?: string): VoiceStatusPayload {
   const xaiConfigured = Boolean(xaiApiKey?.trim());
   const falConfigured = Boolean(falKey?.trim());
+  const ttsConfigured = falConfigured || xaiConfigured;
+  const ttsProvider = falConfigured ? "fal" : xaiConfigured ? "xai" : "none";
 
   if (xaiConfigured) {
     return {
       xaiConfigured: true,
       xaiRealtimeUrl: XAI_REALTIME_WS_URL,
       falConfigured,
+      ttsConfigured,
+      ttsProvider,
       recommended: "xai",
       label: "x.ai Voice ready",
     };
@@ -35,6 +41,8 @@ export function buildVoiceStatus(xaiApiKey?: string, falKey?: string): VoiceStat
     xaiConfigured: false,
     xaiRealtimeUrl: XAI_REALTIME_WS_URL,
     falConfigured,
+    ttsConfigured,
+    ttsProvider,
     recommended: "browser",
     label: "x.ai key missing — browser speech or text fallback",
   };

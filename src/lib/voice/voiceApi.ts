@@ -2,8 +2,22 @@ export interface VoiceStatusResponse {
   xaiConfigured: boolean;
   xaiRealtimeUrl: string;
   falConfigured: boolean;
+  ttsConfigured: boolean;
+  ttsProvider: "fal" | "xai" | "none";
   recommended: "xai" | "browser" | "text";
   label: string;
+}
+
+export function offlineVoiceStatus(): VoiceStatusResponse {
+  return {
+    xaiConfigured: false,
+    xaiRealtimeUrl: "wss://api.x.ai/v1/realtime?model=grok-voice-latest",
+    falConfigured: false,
+    ttsConfigured: false,
+    ttsProvider: "none",
+    recommended: "text",
+    label: "Voice API offline — text commands available",
+  };
 }
 
 export interface VoiceInterpretResponse {
@@ -18,13 +32,7 @@ export async function fetchVoiceStatus(): Promise<VoiceStatusResponse> {
     if (!response.ok) throw new Error("status unavailable");
     return (await response.json()) as VoiceStatusResponse;
   } catch {
-    return {
-      xaiConfigured: false,
-      xaiRealtimeUrl: "wss://api.x.ai/v1/realtime?model=grok-voice-latest",
-      falConfigured: false,
-      recommended: "text",
-      label: "Voice API offline — text commands available",
-    };
+    return offlineVoiceStatus();
   }
 }
 
