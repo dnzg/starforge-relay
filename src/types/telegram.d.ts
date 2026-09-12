@@ -38,6 +38,10 @@ export interface TelegramWebApp {
   HapticFeedback: {
     impactOccurred: (style: "light" | "medium" | "heavy") => void;
   };
+  openInvoice: (
+    url: string,
+    callback?: (status: "paid" | "cancelled" | "failed" | "pending") => void,
+  ) => void;
 }
 
 declare global {

@@ -17,10 +17,18 @@ import {
   buildVoiceStatus,
   createXaiEphemeralToken,
 } from "../shared/voiceServer.js";
+import { resolveTelegramUserId } from "./telegramAuth.js";
 import type { ServerEnv } from "./env.js";
 import { SectorArtCache } from "./sectorArtCache.js";
 import { ShipAvatarCache } from "./shipAvatarCache.js";
 import { hashTtsText, ShipTtsCache } from "./shipTtsCache.js";
+import { StarsEntitlementsStore } from "./starsEntitlements.js";
+import {
+  handleStarsEntitlements,
+  handleStarsInvoice,
+  handleStarsMockGrant,
+  handleTelegramWebhook,
+} from "./starsHandlers.js";
 
 export function createApp(env: ServerEnv) {
   const app = new Hono();
@@ -33,6 +41,7 @@ export function createApp(env: ServerEnv) {
   const shipTtsCache = new ShipTtsCache({
     cacheDir: env.shipTtsCacheDir,
   });
+  const starsEntitlements = new StarsEntitlementsStore(env.starsEntitlementsPath);
 
   app.use("/api/*", cors());
 
@@ -43,6 +52,8 @@ export function createApp(env: ServerEnv) {
       xaiConfigured: Boolean(env.xaiApiKey?.trim()),
       ttsConfigured: Boolean(env.falKey?.trim() || env.xaiApiKey?.trim()),
       telegramConfigured: Boolean(env.telegramBotToken?.trim()),
+      starsConfigured: Boolean(env.telegramBotToken?.trim()),
+      starsMock: env.starsMock,
     }),
   );
 
@@ -98,9 +109,100 @@ export function createApp(env: ServerEnv) {
   });
 
   app.post("/api/ship-livery", async (c) => {
-    const body = await c.req.text();
-    const result = await handleShipLiveryRequest(body, env.falKey);
+    const rawBody = await c.req.text();
+    let parsedBody: {
+      prompt?: string;
+      seed?: number;
+      initData?: string;
+      telegramUserId?: string;
+    } = {};
+    try {
+      parsedBody = JSON.parse(rawBody) as typeof parsedBody;
+    } catch {
+      parsedBody = {};
+    }
+
+    const botToken = env.telegramBotToken?.trim();
+    const userId = resolveTelegramUserId(
+      parsedBody.initData,
+      botToken,
+      parsedBody.telegramUserId,
+    );
+    if (botToken && userId && !env.starsMock) {
+      const entitlements = await starsEntitlements.get(userId);
+      if (entitlements.livery_reroll < 1) {
+        return c.json(
+          {
+            textureUrl: null,
+            error: "No livery credits. Buy a reroll with Stars in the hangar.",
+          },
+          402,
+        );
+      }
+      const consumed = await starsEntitlements.consumeLiveryCredit(userId);
+      if (!consumed) {
+        return c.json(
+          {
+            textureUrl: null,
+            error: "No livery credits. Buy a reroll with Stars in the hangar.",
+          },
+          402,
+        );
+      }
+    }
+
+    const result = await handleShipLiveryRequest(rawBody, env.falKey);
     return c.json(result);
+  });
+
+  app.post("/api/stars/invoice", async (c) => {
+    const body = (await c.req.json().catch(() => ({}))) as {
+      sku?: string;
+      initData?: string;
+      telegramUserId?: string;
+    };
+    const result = await handleStarsInvoice(body, env);
+    if ("error" in result) {
+      return c.json({ error: result.error }, result.status);
+    }
+    return c.json(result);
+  });
+
+  app.post("/api/stars/mock-grant", async (c) => {
+    const body = (await c.req.json().catch(() => ({}))) as {
+      sku?: string;
+      initData?: string;
+      telegramUserId?: string;
+    };
+    const result = await handleStarsMockGrant(body, env, starsEntitlements);
+    if ("error" in result) {
+      return c.json({ error: result.error }, result.status);
+    }
+    return c.json(result);
+  });
+
+  app.get("/api/stars/entitlements", async (c) => {
+    const initData = c.req.query("initData");
+    const telegramUserId = c.req.query("telegramUserId") ?? undefined;
+    const userId = resolveTelegramUserId(
+      initData,
+      env.telegramBotToken,
+      telegramUserId,
+    );
+    const result = await handleStarsEntitlements(userId, starsEntitlements);
+    if ("error" in result) {
+      return c.json({ error: result.error }, result.status);
+    }
+    return c.json(result);
+  });
+
+  app.post("/api/telegram/webhook", async (c) => {
+    const update = (await c.req.json().catch(() => ({}))) as Record<
+      string,
+      unknown
+    >;
+    await handleTelegramWebhook(update, env, starsEntitlements);
+    return c.json({ ok: true });
   });
 
   app.get("/api/ship-avatar/file/:filename", async (c) => {
