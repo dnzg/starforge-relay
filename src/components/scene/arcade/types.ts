@@ -5,24 +5,48 @@ export interface Vec2 {
   z: number;
 }
 
+export type ProjectileOwner = "player" | "enemy";
+
 export interface Projectile {
   id: number;
   position: Vec2;
   velocity: Vec2;
   ttl: number;
+  owner: ProjectileOwner;
 }
+
+export const ENEMY_KINDS = ["interceptor", "gunship", "drone"] as const;
+export type EnemyKind = (typeof ENEMY_KINDS)[number];
+export type AttackPattern = "chase" | "strafe_orbit" | "sniper_hover";
 
 export interface Enemy {
   id: number;
+  kind: EnemyKind;
   position: Vec2;
+  rotation: number;
   hp: number;
   speed: number;
+  radius: number;
+  heading: number;
   strafePhase: number;
+  orbitDir: 1 | -1;
+  preferredRange: number;
+  fireCooldown: number;
+}
+
+export interface ExplosionSlot {
+  active: boolean;
+  x: number;
+  z: number;
+  age: number;
+  duration: number;
 }
 
 export interface PlayerState {
   position: Vec2;
   rotation: number;
+  pitch: number;
+  roll: number;
   invulnTimer: number;
 }
 
@@ -48,7 +72,13 @@ export interface ArcadeGameRefs {
 }
 
 export function createInitialPlayer(): PlayerState {
-  return { position: { x: 0, z: 0 }, rotation: 0, invulnTimer: 0 };
+  return {
+    position: { x: 0, z: 0 },
+    rotation: 0,
+    pitch: 0,
+    roll: 0,
+    invulnTimer: 0,
+  };
 }
 
 export function dist2(a: Vec2, b: Vec2): number {

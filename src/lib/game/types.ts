@@ -30,6 +30,7 @@ export interface CommandLogEntry {
   source: "text" | "voice";
   response: string;
   timestamp: number;
+  speaker?: "captain" | "ship" | "system";
 }
 
 export interface CommandResult {

@@ -1,5 +1,8 @@
+export type SectorArtKind = "planet" | "sky";
+
 export interface FalSectorArtPayload {
   seed: number;
+  kind?: SectorArtKind;
   textureUrl: string | null;
   placeholder: boolean;
   prompt: string;
@@ -12,15 +15,20 @@ export interface FalSectorArtPayload {
 }
 
 export interface SectorArtCacheAdapter {
-  read(seed: number): Promise<FalSectorArtPayload | null>;
+  read(
+    seed: number,
+    kind?: SectorArtKind,
+  ): Promise<FalSectorArtPayload | null>;
   writeFromRemote(
     seed: number,
     payload: Omit<FalSectorArtPayload, "cached">,
     remoteUrl: string,
+    kind?: SectorArtKind,
   ): Promise<FalSectorArtPayload>;
   writePlaceholder(
     seed: number,
     payload: Omit<FalSectorArtPayload, "cached">,
+    kind?: SectorArtKind,
   ): Promise<FalSectorArtPayload>;
 }
 
@@ -37,16 +45,37 @@ export function buildPlanetPrompt(seed: number): string {
   ].join(" ");
 }
 
+export function buildSkyPrompt(seed: number): string {
+  const palettes = [
+    "crimson nebula and graphite dust lanes",
+    "violet hydrogen clouds and gold starlight",
+    "teal ion storms over deep indigo void",
+    "ember-orange nebula with cold blue stars",
+  ];
+  const palette = palettes[Math.abs(seed) % palettes.length];
+  return [
+    "Cinematic deep space sky painting, full-frame nebula vista,",
+    palette,
+    "soft volumetric clouds, distant galaxies, no planet, no ship,",
+    "no text, no logos, no UI, original IP, dark edges for skybox,",
+    `seed ${seed}`,
+  ].join(" ");
+}
+
 export async function generateFalSectorArtServer(
   seed: number,
   falKey?: string,
+  kind: SectorArtKind = "planet",
+  customPrompt?: string,
 ): Promise<FalSectorArtPayload> {
-  const prompt = buildPlanetPrompt(seed);
+  const prompt =
+    customPrompt ?? (kind === "sky" ? buildSkyPrompt(seed) : buildPlanetPrompt(seed));
   const metadata = { model: FAL_MODEL, generatedAt: Date.now() };
 
   if (!falKey?.trim()) {
     return {
       seed,
+      kind,
       textureUrl: null,
       placeholder: true,
       prompt,
@@ -72,12 +101,14 @@ export async function generateFalSectorArtServer(
         output_format: "jpeg",
         enable_safety_checker: true,
       }),
+      signal: AbortSignal.timeout(25_000),
     });
 
     if (!response.ok) {
       const errorText = await response.text();
       return {
         seed,
+        kind,
         textureUrl: null,
         placeholder: true,
         prompt,
@@ -94,6 +125,7 @@ export async function generateFalSectorArtServer(
 
     return {
       seed,
+      kind,
       textureUrl,
       placeholder: !textureUrl,
       prompt,
@@ -103,6 +135,7 @@ export async function generateFalSectorArtServer(
   } catch (error) {
     return {
       seed,
+      kind,
       textureUrl: null,
       placeholder: true,
       prompt,
@@ -113,17 +146,62 @@ export async function generateFalSectorArtServer(
   }
 }
 
+export function buildShipLiveryPrompt(userPrompt: string): string {
+  return [
+    "Sci-fi fighter hull livery texture, tiled metal panels,",
+    userPrompt.trim(),
+    "top-down paintable albedo, no cockpit glass, no text, no logos, original IP",
+  ].join(" ");
+}
+
+function hashPrompt(value: string): number {
+  let hash = 2166136261;
+  for (let i = 0; i < value.length; i++) {
+    hash ^= value.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return Math.abs(hash) % 1_000_000_000;
+}
+
+export async function handleShipLiveryRequest(
+  body: string,
+  falKey?: string,
+): Promise<FalSectorArtPayload> {
+  let prompt = "graphite titanium hull with a thin crimson stripe";
+  let seed = hashPrompt(prompt);
+  if (body) {
+    try {
+      const parsed = JSON.parse(body) as { prompt?: string; seed?: number };
+      if (parsed.prompt?.trim()) prompt = parsed.prompt.trim();
+      if (typeof parsed.seed === "number" && Number.isFinite(parsed.seed)) {
+        seed = Math.floor(parsed.seed);
+      } else {
+        seed = hashPrompt(prompt);
+      }
+    } catch {
+      // keep defaults
+    }
+  }
+
+  const wrapped = buildShipLiveryPrompt(prompt);
+  return generateFalSectorArtServer(seed, falKey, "planet", wrapped);
+}
+
 export async function handleSectorArtRequest(
   body: string,
   falKey?: string,
   cache?: SectorArtCacheAdapter,
 ): Promise<FalSectorArtPayload> {
   let seed = Math.floor(Math.random() * 1_000_000);
+  let kind: SectorArtKind = "planet";
   if (body) {
     try {
-      const parsed = JSON.parse(body) as { seed?: number };
+      const parsed = JSON.parse(body) as { seed?: number; kind?: SectorArtKind };
       if (typeof parsed.seed === "number" && Number.isFinite(parsed.seed)) {
         seed = Math.floor(parsed.seed);
+      }
+      if (parsed.kind === "sky" || parsed.kind === "planet") {
+        kind = parsed.kind;
       }
     } catch {
       // ignore malformed JSON and use random seed
@@ -131,13 +209,13 @@ export async function handleSectorArtRequest(
   }
 
   if (cache) {
-    const cached = await cache.read(seed);
+    const cached = await cache.read(seed, kind);
     if (cached?.textureUrl) {
       return cached;
     }
   }
 
-  const generated = await generateFalSectorArtServer(seed, falKey);
+  const generated = await generateFalSectorArtServer(seed, falKey, kind);
 
   if (!cache) {
     return generated;
@@ -145,7 +223,7 @@ export async function handleSectorArtRequest(
 
   if (generated.textureUrl && !generated.placeholder) {
     try {
-      return await cache.writeFromRemote(seed, generated, generated.textureUrl);
+      return await cache.writeFromRemote(seed, generated, generated.textureUrl, kind);
     } catch {
       return generated;
     }
@@ -156,7 +234,7 @@ export async function handleSectorArtRequest(
   }
 
   try {
-    return await cache.writePlaceholder(seed, generated);
+    return await cache.writePlaceholder(seed, generated, kind);
   } catch {
     return generated;
   }
