@@ -1,7 +1,7 @@
 # Starforge Relay — speaker notes (3–5 min)
 
 **Формат:** 5 слайдов → сразу live Telegram Mini App.  
-**Слайды:** `pitch/demo-slides.html` · `← →` / Space · `F` fullscreen  
+**Слайды:** `public/pitch/demo-slides.html` → live `/pitch/demo-slides.html` · `← →` / Space · `F` fullscreen
 **Live:** https://starforge-relay.onrender.com  
 **Repo:** https://github.com/dnzg/starforge-relay  
 
@@ -41,20 +41,20 @@
 
 ---
 
-## Slide 2 — The gap (~40s)
+## Slide 2 — The problem (~40s)
 
-**Смысл:** почему рынок кривой → мы посередине.
+**Смысл:** у Telegram есть дистрибуция, нет «бесконечных миров, которые всё ещё ощущаются как игра».
 
-**Скажи:**
-> Most Telegram games are either static tappers with fixed art — or AI chat toys that don’t feel like games.
+**Проблема одной фразой (EN):**
+> Telegram has distribution. It doesn’t have infinite game worlds that still feel like games.
 
-> We do three things together:
-> - **Play** — real arcade loop: ship, hostiles, jump gate, super attack  
-> - **Worlds** — Fal textures generated once, cached forever per seed  
-> - **Voice** — ship AI with avatar + TTS as a bonus layer, not the only control  
+**Три следствия:**
+> - **Dead art** — tappers with the same skins forever; content dies after day one  
+> - **Fake games** — AI chat toys generate text, not skill or tension  
+> - **Cost wall** — naive “AI every session” burns money; unit economics collapse  
 
-**Мост к слайду 3:**
-> Here’s the loop players feel in the first minute.
+**Мост к решению (слайд 3):**
+> So we built an arcade loop where AI is the content pipeline — generate once per seed, cache forever, then play.
 
 ---
 
