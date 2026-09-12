@@ -122,7 +122,10 @@ export function ArcadeScene(props: ArcadeSceneProps) {
   return (
     <Canvas
       className="cockpit-canvas"
-      camera={{ position: [0, 6.8, 9.2], fov: 50, near: 0.25, far: 800 }}
+      camera={{ position: [0, 3.2, 6], fov: 60, near: 0.1, far: 800 }}
+      onContextMenu={(event) => {
+        event.preventDefault();
+      }}
       dpr={quality.dpr}
       gl={{ antialias: !quality.mobile, alpha: false, powerPreference: "high-performance" }}
     >

@@ -11,6 +11,11 @@ import { PlayerShipMesh } from "./PlayerShipMesh";
 import { CombatMeshes } from "./CombatMeshes";
 import { JumpGateMesh } from "./JumpGateMesh";
 import {
+  applyArcadeFlight,
+  CAM_BACK,
+  CAM_HEIGHT,
+} from "./arcadeFlight";
+import {
   createExplosionPool,
   ExplosionBursts,
   spawnExplosion,
@@ -45,12 +50,9 @@ const CONTACT_RADIUS = 2.05;
 const PLAYER_BOLT_HIT = 0.9;
 const ENEMY_FIRE_RANGE = 14;
 const ENEMY_FIRE_COOLDOWN = 1.35;
-const CAM_HEIGHT = 6.8;
-const CAM_BACK = 9.2;
-const CAM_LOOK_AHEAD = 2.4;
-const TURN_RATE = 14;
-const BASE_FOV = 50;
-const BOOST_FOV = 58;
+const SECTOR_BOUNDS = 22;
+const BASE_FOV = 60;
+const BOOST_FOV = 68;
 const WARP_FOV = 72;
 
 const _nose = new THREE.Vector3();
@@ -392,15 +394,17 @@ export function ArcadeGameLoop({
       const speed = PLAYER_SPEED * boost * dt;
       const previousYaw = player.rotation;
 
-      if (input.moveX !== 0 || input.moveY !== 0) {
-        player.position.x += input.moveX * speed;
-        player.position.z += input.moveY * speed;
-        player.rotation = lerpAngle(
-          player.rotation,
-          yawFromDirection(input.moveX, input.moveY),
-          1 - Math.exp(-TURN_RATE * dt),
-        );
-      }
+      applyArcadeFlight(player, input, speed, dt);
+      player.position.x = THREE.MathUtils.clamp(
+        player.position.x,
+        -SECTOR_BOUNDS,
+        SECTOR_BOUNDS,
+      );
+      player.position.z = THREE.MathUtils.clamp(
+        player.position.z,
+        -SECTOR_BOUNDS,
+        SECTOR_BOUNDS,
+      );
 
       turnRateRef.current = THREE.MathUtils.lerp(
         turnRateRef.current,
@@ -524,11 +528,9 @@ export function ArcadeGameLoop({
       player.rotation,
       1 - Math.exp(-3.1 * dt),
     );
-    const lookX = -Math.sin(player.rotation) * CAM_LOOK_AHEAD;
-    const lookZ = -Math.cos(player.rotation) * CAM_LOOK_AHEAD;
     cameraTarget.current.set(
       player.position.x + Math.sin(camYawRef.current) * CAM_BACK,
-      CAM_HEIGHT,
+      CAM_HEIGHT + player.pitch * 0.85,
       player.position.z + Math.cos(camYawRef.current) * CAM_BACK,
     );
     shakeRef.current = Math.max(0, shakeRef.current - dt * 2.4);
@@ -545,9 +547,9 @@ export function ArcadeGameLoop({
     const lerpFactor = 1 - Math.exp(-5.2 * dt);
     camera.position.lerp(cameraTarget.current, lerpFactor);
     lookTarget.current.set(
-      player.position.x + lookX * 0.45,
-      0.15,
-      player.position.z + lookZ * 0.45,
+      player.position.x - Math.sin(player.rotation) * 1.6,
+      0.45 - player.pitch * 0.55,
+      player.position.z - Math.cos(player.rotation) * 1.6,
     );
     camera.lookAt(lookTarget.current);
     camera.rotateZ(-turnRateRef.current * 1.8);

@@ -92,7 +92,7 @@ export function OnboardingOverlay({
             </p>
             <ul className="onboarding-list stagger-item">
               <li>
-                <strong>Move</strong> — W up, S down, A left, D right
+                <strong>Fly</strong> — W dive, S climb, A left, D right
               </li>
               <li>
                 <strong>Boost</strong> — Hold Shift
