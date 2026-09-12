@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, type RefObject } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { MAX_ENEMIES, MAX_PROJECTILES } from "./enemyBehavior";
-import type { Enemy, EnemyKind, Projectile } from "./types";
+import type { Enemy, EnemyKind, Projectile, SuperBurstState } from "./types";
 
 const POOL_PER_KIND = MAX_ENEMIES;
 
@@ -263,16 +263,65 @@ function createGlowBolt(owner: "player" | "enemy"): THREE.Group {
   return group;
 }
 
+function createSuperBolt(): THREE.Group {
+  const group = new THREE.Group();
+  const core = new THREE.Mesh(
+    new THREE.CapsuleGeometry(0.09, 1.15, 4, 8),
+    new THREE.MeshBasicMaterial({
+      color: "#ecfeff",
+      toneMapped: false,
+    }),
+  );
+  core.rotation.x = Math.PI / 2;
+  group.add(core);
+
+  const glow = new THREE.Mesh(
+    new THREE.CapsuleGeometry(0.22, 1.6, 4, 8),
+    new THREE.MeshBasicMaterial({
+      color: "#22d3ee",
+      transparent: true,
+      opacity: 0.7,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      toneMapped: false,
+    }),
+  );
+  glow.rotation.x = Math.PI / 2;
+  group.add(glow);
+
+  const trail = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.42, 3.4),
+    new THREE.MeshBasicMaterial({
+      color: "#a5f3fc",
+      transparent: true,
+      opacity: 0.5,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+      toneMapped: false,
+    }),
+  );
+  trail.rotation.x = Math.PI / 2;
+  trail.position.z = -1.4;
+  group.add(trail);
+
+  group.visible = false;
+  group.userData.kind = "super";
+  return group;
+}
+
 const KIND_ORDER: EnemyKind[] = ["interceptor", "gunship", "drone"];
 
 interface CombatMeshesProps {
   enemiesRef: RefObject<Enemy[]>;
   projectilesRef: RefObject<Projectile[]>;
+  superBurstRef: RefObject<SuperBurstState>;
 }
 
 export function CombatMeshes({
   enemiesRef,
   projectilesRef,
+  superBurstRef,
 }: CombatMeshesProps) {
   const enemyGroupRef = useRef<THREE.Group>(null);
   const projectileGroupRef = useRef<THREE.Group>(null);
@@ -297,6 +346,25 @@ export function CombatMeshes({
     () => Array.from({ length: MAX_PROJECTILES }, () => createGlowBolt("enemy")),
     [],
   );
+  const superBoltPool = useMemo(
+    () => Array.from({ length: 4 }, () => createSuperBolt()),
+    [],
+  );
+  const novaMaterial = useMemo(
+    () =>
+      new THREE.MeshBasicMaterial({
+        color: "#67e8f9",
+        transparent: true,
+        opacity: 0,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+        toneMapped: false,
+      }),
+    [],
+  );
+  const novaGeometry = useMemo(() => new THREE.RingGeometry(0.65, 0.95, 40), []);
+  const novaRef = useRef<THREE.Mesh>(null);
+  const novaLightRef = useRef<THREE.PointLight>(null);
 
   useEffect(() => {
     const enemyGroup = enemyGroupRef.current;
@@ -313,13 +381,18 @@ export function CombatMeshes({
       projectileGroup.add(playerBoltPool[i]!);
       projectileGroup.add(enemyBoltPool[i]!);
     }
+    for (let i = 0; i < superBoltPool.length; i++) {
+      projectileGroup.add(superBoltPool[i]!);
+    }
 
     return () => {
       enemyGroup.clear();
       projectileGroup.clear();
       disposeSharedAssets(assets);
+      novaMaterial.dispose();
+      novaGeometry.dispose();
     };
-  }, [assets, pools, playerBoltPool, enemyBoltPool]);
+  }, [assets, pools, playerBoltPool, enemyBoltPool, superBoltPool, novaMaterial, novaGeometry]);
 
   useFrame(({ clock }, delta) => {
     const enemies = enemiesRef.current;
@@ -364,12 +437,15 @@ export function CombatMeshes({
     const projectiles = projectilesRef.current;
     let playerUsed = 0;
     let enemyUsed = 0;
+    let superUsed = 0;
     for (let i = 0; i < projectiles.length; i++) {
       const projectile = projectiles[i]!;
       const mesh =
-        projectile.owner === "enemy"
-          ? enemyBoltPool[enemyUsed++]
-          : playerBoltPool[playerUsed++];
+        projectile.kind === "super"
+          ? superBoltPool[superUsed++]
+          : projectile.owner === "enemy"
+            ? enemyBoltPool[enemyUsed++]
+            : playerBoltPool[playerUsed++];
       if (!mesh) continue;
       mesh.visible = true;
       mesh.position.set(projectile.position.x, 0.08, projectile.position.z);
@@ -381,12 +457,49 @@ export function CombatMeshes({
     for (let i = enemyUsed; i < enemyBoltPool.length; i++) {
       enemyBoltPool[i]!.visible = false;
     }
+    for (let i = superUsed; i < superBoltPool.length; i++) {
+      superBoltPool[i]!.visible = false;
+    }
+
+    const nova = novaRef.current;
+    const burst = superBurstRef.current;
+    if (nova && burst) {
+      if (!burst.active) {
+        nova.visible = false;
+        if (novaLightRef.current) novaLightRef.current.intensity = 0;
+      } else {
+        const t = burst.duration > 0 ? burst.age / burst.duration : 1;
+        if (t >= 1) {
+          nova.visible = false;
+          if (novaLightRef.current) novaLightRef.current.intensity = 0;
+        } else {
+          const scale = 1 + t * 7.5;
+          nova.visible = true;
+          nova.position.set(burst.x, 0.12, burst.z);
+          nova.rotation.x = -Math.PI / 2;
+          nova.scale.set(scale, scale, 1);
+          novaMaterial.opacity = (1 - t) * 0.85;
+          if (novaLightRef.current) {
+            novaLightRef.current.position.set(burst.x, 0.7, burst.z);
+            novaLightRef.current.intensity = (1 - t) * 10;
+          }
+        }
+      }
+    }
   });
 
   return (
     <>
       <group ref={enemyGroupRef} dispose={null} />
       <group ref={projectileGroupRef} dispose={null} />
+      <mesh
+        ref={novaRef}
+        geometry={novaGeometry}
+        material={novaMaterial}
+        visible={false}
+        name="super-nova"
+      />
+      <pointLight ref={novaLightRef} color="#67e8f9" intensity={0} distance={12} />
     </>
   );
 }

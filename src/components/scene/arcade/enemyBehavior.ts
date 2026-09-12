@@ -246,6 +246,7 @@ function tryEnemyShot(
     },
     ttl: 2.1,
     owner: "enemy",
+    kind: "bolt",
   });
   enemy.fireCooldown = archetype.fireInterval + Math.random() * 0.28;
 }

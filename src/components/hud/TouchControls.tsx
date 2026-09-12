@@ -1,18 +1,29 @@
-import { useCallback, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { arcadeUiRef } from "../../lib/combat/arcadeUiRef";
 
 interface TouchControlsProps {
   disabled?: boolean;
   onMove: (x: number, y: number) => void;
   onFire: (active: boolean) => void;
+  onSuper: (active: boolean) => void;
 }
 
 export function TouchControls({
   disabled,
   onMove,
   onFire,
+  onSuper,
 }: TouchControlsProps) {
   const dpadRef = useRef<HTMLDivElement>(null);
   const activePointerRef = useRef<number | null>(null);
+  const [superReady, setSuperReady] = useState(false);
+
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      setSuperReady(arcadeUiRef.manaReady);
+    }, 100);
+    return () => window.clearInterval(interval);
+  }, []);
 
   const updateMoveFromPointer = useCallback(
     (clientX: number, clientY: number) => {
@@ -62,17 +73,31 @@ export function TouchControls({
         <span className="touch-dpad-ring" />
         <span className="touch-dpad-center">MOVE</span>
       </div>
-      <button
-        type="button"
-        className="touch-fire"
-        disabled={disabled}
-        onPointerDown={() => onFire(true)}
-        onPointerUp={() => onFire(false)}
-        onPointerLeave={() => onFire(false)}
-        onPointerCancel={() => onFire(false)}
-      >
-        FIRE
-      </button>
+      <div className="touch-actions">
+        <button
+          type="button"
+          className={`touch-super ${superReady ? "is-ready" : ""}`}
+          disabled={disabled}
+          aria-disabled={disabled || !superReady}
+          onPointerDown={() => onSuper(true)}
+          onPointerUp={() => onSuper(false)}
+          onPointerLeave={() => onSuper(false)}
+          onPointerCancel={() => onSuper(false)}
+        >
+          SUPER
+        </button>
+        <button
+          type="button"
+          className="touch-fire"
+          disabled={disabled}
+          onPointerDown={() => onFire(true)}
+          onPointerUp={() => onFire(false)}
+          onPointerLeave={() => onFire(false)}
+          onPointerCancel={() => onFire(false)}
+        >
+          FIRE
+        </button>
+      </div>
     </div>
   );
 }

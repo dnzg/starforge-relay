@@ -6,6 +6,7 @@ export interface Vec2 {
 }
 
 export type ProjectileOwner = "player" | "enemy";
+export type ProjectileKind = "bolt" | "super";
 
 export interface Projectile {
   id: number;
@@ -13,6 +14,15 @@ export interface Projectile {
   velocity: Vec2;
   ttl: number;
   owner: ProjectileOwner;
+  kind: ProjectileKind;
+}
+
+export interface SuperBurstState {
+  active: boolean;
+  x: number;
+  z: number;
+  age: number;
+  duration: number;
 }
 
 export const ENEMY_KINDS = ["interceptor", "gunship", "drone"] as const;

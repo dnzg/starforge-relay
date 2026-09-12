@@ -6,6 +6,7 @@ export interface ArcadeInputState {
   boost: boolean;
   fire: boolean;
   firePressed: boolean;
+  superPressed: boolean;
 }
 
 const INITIAL: ArcadeInputState = {
@@ -14,6 +15,7 @@ const INITIAL: ArcadeInputState = {
   boost: false,
   fire: false,
   firePressed: false,
+  superPressed: false,
 };
 
 function isTypingTarget(target: EventTarget | null): boolean {
@@ -35,9 +37,11 @@ export function useArcadeInput(enabled: boolean) {
     right: false,
     boost: false,
     fire: false,
+    super: false,
   });
-  const touchRef = useRef({ moveX: 0, moveY: 0, fire: false });
+  const touchRef = useRef({ moveX: 0, moveY: 0, fire: false, super: false });
   const fireLatchRef = useRef(false);
+  const superLatchRef = useRef(false);
   const stateRef = useRef<ArcadeInputState>({ ...INITIAL });
 
   const recompute = useCallback(() => {
@@ -69,12 +73,22 @@ export function useArcadeInput(enabled: boolean) {
       fireLatchRef.current = false;
     }
 
+    const superHeld = k.super || t.super;
+    const superPressed = superHeld && !superLatchRef.current;
+    if (superPressed) {
+      superLatchRef.current = true;
+    }
+    if (!superHeld) {
+      superLatchRef.current = false;
+    }
+
     stateRef.current = {
       moveX,
       moveY,
       boost: k.boost,
       fire,
       firePressed,
+      superPressed,
     };
   }, []);
 
@@ -112,6 +126,11 @@ export function useArcadeInput(enabled: boolean) {
           keysRef.current.fire = true;
           event.preventDefault();
           break;
+        case "KeyF":
+        case "KeyQ":
+          keysRef.current.super = true;
+          event.preventDefault();
+          break;
         default:
           break;
       }
@@ -142,6 +161,10 @@ export function useArcadeInput(enabled: boolean) {
           break;
         case "Space":
           keysRef.current.fire = false;
+          break;
+        case "KeyF":
+        case "KeyQ":
+          keysRef.current.super = false;
           break;
         default:
           break;
@@ -207,7 +230,15 @@ export function useArcadeInput(enabled: boolean) {
     [recompute],
   );
 
+  const setTouchSuper = useCallback(
+    (active: boolean) => {
+      touchRef.current.super = active;
+      recompute();
+    },
+    [recompute],
+  );
+
   const getState = useCallback(() => stateRef.current, []);
 
-  return { getState, setTouchMove, setTouchFire };
+  return { getState, setTouchMove, setTouchFire, setTouchSuper };
 }

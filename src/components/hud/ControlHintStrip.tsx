@@ -14,6 +14,8 @@ const MEANINGFUL_KEYS = new Set([
   "Space",
   "ShiftLeft",
   "ShiftRight",
+  "KeyF",
+  "KeyQ",
 ]);
 
 interface ControlHintStripProps {
@@ -55,7 +57,7 @@ export function ControlHintStrip({ visible, onDismiss }: ControlHintStripProps) 
       aria-hidden={!visible}
     >
       <span>
-        W dive · S climb · A left · D right · Shift boost · Space fire
+        W dive · S climb · A left · D right · Shift boost · Space fire · F/Q super
       </span>
       <button
         type="button"

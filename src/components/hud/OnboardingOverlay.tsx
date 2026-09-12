@@ -107,6 +107,9 @@ export function OnboardingOverlay({
                 <strong>Fire</strong> — Hold Space, click the sector, or FIRE
               </li>
               <li>
+                <strong>Super</strong> — F or Q when mana is full (SUPER on touch)
+              </li>
+              <li>
                 <strong>Jump</strong> — After 3 kills, fly into the JUMP gate
               </li>
               <li>
