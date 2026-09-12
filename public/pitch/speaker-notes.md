@@ -3,6 +3,7 @@
 **Формат:** 5 слайдов → сразу live Telegram Mini App.  
 **Слайды:** `public/pitch/demo-slides.html` → live `/pitch/demo-slides.html` · `← →` / Space · `F` fullscreen
 **Live:** https://starforge-relay.onrender.com  
+**Bot / QR:** https://t.me/Starforge_Relay_Bot  
 **Repo:** https://github.com/dnzg/starforge-relay  
 
 Говори жюри **на английском** (ниже — готовые фразы). Заметки слева — для тебя.
@@ -41,22 +42,20 @@
 
 ---
 
-## Slide 2 — The problem (~40s)
+## Slide 2 — Why this · since 2020 (~45s)
 
-**Смысл:** у Telegram есть дистрибуция, нет «бесконечных миров, которые всё ещё ощущаются как игра».
+**Смысл:** личный крючок + проблема рынка. Скрин palm0 — твоя игра 2020, до AI.
 
-**Проблема одной фразой (EN):**
-> Telegram has distribution. It doesn’t have infinite game worlds that still feel like games.
+**Скажи:**
+> In 2020 I was already building toward this — a game about explorable worlds. That screenshot is mine, from before generative AI.
 
-**Три следствия:**
-> - **Dead art** — tappers with the same skins forever; content dies after day one  
-> - **Fake games** — AI chat toys generate text, not skill or tension  
-> - **Cost wall** — naive “AI every session” burns money; unit economics collapse  
+> I always wanted to keep going. What was missing wasn’t the idea of a game — it was a content pipeline that could stay fresh without killing the economics.
 
-**Мост к решению (слайд 3):**
-> So we built an arcade loop where AI is the content pipeline — generate once per seed, cache forever, then play.
+> Telegram has distribution. It still doesn’t have infinite game worlds that feel like games: tappers die after day one, AI chats aren’t skill games, and naive AI-every-session burns money.
 
----
+> Starforge Relay is the continuation: arcade loop first, AI as the universe factory — generate once per seed, cache forever, play.
+
+**Жест:** укажи на скрин 2020 → потом на решение на слайде 3.
 
 ## Slide 3 — Product loop (~40s)
 
