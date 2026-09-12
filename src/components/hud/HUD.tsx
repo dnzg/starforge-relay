@@ -9,6 +9,7 @@ import { TranscriptDrawer, TranscriptPanel } from "./TranscriptPanel";
 import { CommandInput } from "./CommandInput";
 import { MicButton } from "./MicButton";
 import { TouchControls } from "./TouchControls";
+import { TouchSteerZone } from "./TouchSteerZone";
 import { ControlHintStrip } from "./ControlHintStrip";
 import { Minimap } from "./Minimap";
 import { SectorProgress } from "./SectorProgress";
@@ -216,15 +217,17 @@ export function HUD({
         </div>
       </header>
 
-      <Minimap />
+      <div className="hud-radar-slot">
+        <Minimap />
+      </div>
       <ControlHintStrip visible={showHintStrip} onDismiss={dismissHints} />
 
       <TranscriptPanel />
       <TranscriptDrawer open={logOpen} />
 
+      <TouchSteerZone disabled={disabled} onMove={handleTouchMove} />
       <TouchControls
         disabled={disabled}
-        onMove={handleTouchMove}
         onBoost={handleTouchBoost}
         onFire={handleTouchFire}
         onSuper={onTouchSuper}

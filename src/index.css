@@ -641,11 +641,16 @@ h3 {
   }
 }
 
-.radar {
+.hud-radar-slot {
   position: absolute;
   left: 0.75rem;
   bottom: max(5.7rem, calc(var(--space-safe-bottom) + 5.3rem));
-  z-index: 4;
+  z-index: 5;
+  pointer-events: none;
+}
+
+.radar {
+  position: relative;
   width: var(--radar-size);
   height: var(--radar-size);
   pointer-events: none;
@@ -1214,14 +1219,21 @@ h3 {
   white-space: nowrap;
 }
 
+.touch-steer-zone {
+  display: none;
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: auto;
+  touch-action: none;
+}
+
 .touch-controls {
   display: none;
   position: absolute;
-  left: 0.75rem;
   right: 0.75rem;
   bottom: max(5.4rem, calc(var(--space-safe-bottom) + 5rem));
-  z-index: 5;
-  justify-content: space-between;
+  z-index: 6;
   align-items: flex-end;
   pointer-events: auto;
 }
@@ -1555,6 +1567,36 @@ h3 {
   width: 100%;
 }
 
+.start-menu-comms {
+  margin: 0.35rem 0 0.85rem;
+  padding: 0.75rem 0.85rem;
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--color-surface-strong) 88%, transparent);
+  box-shadow: var(--shadow-border);
+}
+
+.start-menu-comms h2 {
+  margin: 0 0 0.35rem;
+  font-size: 0.95rem;
+}
+
+.start-menu-comms p {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 0.82rem;
+}
+
+.start-menu-comms .onboarding-error {
+  margin-top: 0.55rem;
+}
+
+.start-menu-comms-ok {
+  margin: 0.45rem 0 0;
+  color: #67e8f9;
+  font-size: 0.82rem;
+  font-weight: 500;
+}
+
 .onboarding-overlay {
   position: absolute;
   inset: 0;
@@ -1731,7 +1773,8 @@ h3 {
 .hud-overlay.gameover-is-open .objective-marker,
 .hud-overlay.gameover-is-open .control-hint-strip,
 .hud-overlay.gameover-is-open .touch-controls,
-.hud-overlay.gameover-is-open .radar {
+.hud-overlay.gameover-is-open .touch-steer-zone,
+.hud-overlay.gameover-is-open .hud-radar-slot {
   visibility: hidden;
 }
 
@@ -1784,7 +1827,8 @@ h3 {
 .hud-overlay.garage-is-open .objective-marker,
 .hud-overlay.garage-is-open .control-hint-strip,
 .hud-overlay.garage-is-open .touch-controls,
-.hud-overlay.garage-is-open .radar {
+.hud-overlay.garage-is-open .touch-steer-zone,
+.hud-overlay.garage-is-open .hud-radar-slot {
   visibility: hidden;
 }
 
@@ -2033,13 +2077,12 @@ h3 {
     max-width: min(18rem, calc(100% - 2.25rem - var(--radar-size)));
   }
 
-  .radar {
-    top: calc(max(0.7rem, var(--space-safe-top)) + 2.75rem + 0.55rem);
-    bottom: auto;
-  }
-
   .touch-controls {
     display: flex;
+    bottom: max(5.2rem, calc(var(--space-safe-bottom) + 4.8rem));
+  }
+
+  .hud-radar-slot {
     bottom: max(5.2rem, calc(var(--space-safe-bottom) + 4.8rem));
   }
 
@@ -2172,6 +2215,10 @@ h3 {
 }
 
 @media (hover: none) and (pointer: coarse) {
+  .touch-steer-zone {
+    display: block;
+  }
+
   .touch-controls {
     display: flex;
   }
@@ -2182,16 +2229,15 @@ h3 {
   }
 
   .hud-overlay {
-    --radar-size: 8rem;
+    --radar-size: 7rem;
   }
 
   .control-hint-strip {
     display: none;
   }
 
-  .radar {
-    top: calc(max(0.7rem, var(--space-safe-top)) + 2.75rem + 0.55rem);
-    bottom: auto;
+  .hud-radar-slot {
+    bottom: max(5.2rem, calc(var(--space-safe-bottom) + 4.8rem));
   }
 }
 
