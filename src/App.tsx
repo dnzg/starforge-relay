@@ -23,7 +23,7 @@ function GameShell() {
     combatCallbacks,
     markPlanetTextureReady,
   } = useGame();
-  const { isTelegram } = useTelegramWebApp();
+  const { isTelegram, webApp } = useTelegramWebApp();
   const [garageOpen, setGarageOpen] = useState(false);
   const combatEnabled = Boolean(run && run.status === "active") && !garageOpen;
   const arcadeInput = useArcadeInput(combatEnabled);
@@ -49,6 +49,17 @@ function GameShell() {
       uninstallAudio();
     };
   }, []);
+
+  useEffect(() => {
+    if (!webApp) return;
+    const activeRun = Boolean(run && run.status === "active") && !garageOpen;
+    if (activeRun) {
+      webApp.enableClosingConfirmation();
+    } else {
+      webApp.disableClosingConfirmation();
+    }
+    return () => webApp.disableClosingConfirmation();
+  }, [webApp, run?.status, garageOpen]);
 
   return (
     <div className="app-shell" onContextMenu={(event) => event.preventDefault()}>

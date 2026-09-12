@@ -1,6 +1,7 @@
 export interface ServerEnv {
   falKey?: string;
   xaiApiKey?: string;
+  telegramBotToken?: string;
   port: number;
   serveStatic: boolean;
   distDir: string;
@@ -19,6 +20,7 @@ export function loadServerEnv(options?: {
   return {
     falKey: process.env.FAL_KEY,
     xaiApiKey: process.env.XAI_API_KEY,
+    telegramBotToken: process.env.TELEGRAM_BOT_TOKEN,
     port,
     serveStatic: !dev,
     distDir: "dist",

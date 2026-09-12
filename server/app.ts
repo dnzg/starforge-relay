@@ -42,6 +42,13 @@ export function createApp(env: ServerEnv) {
       falConfigured: Boolean(env.falKey?.trim()),
       xaiConfigured: Boolean(env.xaiApiKey?.trim()),
       ttsConfigured: Boolean(env.falKey?.trim() || env.xaiApiKey?.trim()),
+      telegramConfigured: Boolean(env.telegramBotToken?.trim()),
+    }),
+  );
+
+  app.get("/api/telegram/status", (c) =>
+    c.json({
+      botConfigured: Boolean(env.telegramBotToken?.trim()),
     }),
   );
 

@@ -19,6 +19,7 @@ import { nextSectorSeed } from "../lib/game/commandResolver";
 import { generateSectorPackage } from "../lib/sector/sectorPackage";
 import type { CombatCallbacks } from "../components/scene/arcade/types";
 import { createCombatEventQueue } from "../lib/combat/combatEventQueue";
+import { telegramHaptic } from "../lib/telegram/haptics";
 import { HYPERSPACE_MS } from "../lib/game/hyperspace";
 import { playSfx } from "../lib/audio/gameAudio";
 import { writeHull } from "../lib/combat/arcadeUiRef";
@@ -229,6 +230,7 @@ export function GameProvider({
   const triggerSectorJump = useCallback(async () => {
     if (jumpPendingRef.current) return;
     jumpPendingRef.current = true;
+    telegramHaptic("heavy");
 
     const result = client.performSectorJump();
     if (result?.hyperspaceTrigger) {
@@ -333,6 +335,7 @@ export function GameProvider({
     ) => {
       const result = await client.sendCommand(command, source, options);
       if (result?.hyperspaceTrigger || result?.run.hyperspaceActive) {
+        telegramHaptic("heavy");
         beginHyperspaceTransition();
         if (client.run) {
           await loadSectorAssets(client.run);
@@ -356,7 +359,9 @@ export function GameProvider({
 
   const combatCallbacks = useMemo<CombatCallbacks>(
     () => ({
-      onEnemyKilled: () => combatQueueRef.current.queueKill(),
+      onEnemyKilled: () => {
+        combatQueueRef.current.queueKill();
+      },
       onPlayerHit: (damage: number) => {
         combatQueueRef.current.queueDamage(damage);
       },
