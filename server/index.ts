@@ -2,6 +2,7 @@ import { config as loadEnv } from "dotenv";
 import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { serve } from "@hono/node-server";
+import { serveStatic } from "@hono/node-server/serve-static";
 import { createApp } from "./app.js";
 import { loadServerEnv } from "./env.js";
 
@@ -21,6 +22,15 @@ if (env.serveStatic) {
     process.exit(1);
   }
 
+  // Real files from dist/ first (Vite assets, /pitch deck, favicon, …)
+  app.use(
+    "/*",
+    serveStatic({
+      root: env.distDir,
+    }),
+  );
+
+  // SPA fallback only when no static file matched
   app.get("*", (c) => {
     if (c.req.path.startsWith("/api")) {
       return c.notFound();
