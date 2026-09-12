@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, type RefObject } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { MAX_ENEMIES, MAX_PROJECTILES } from "./enemyBehavior";
+import { enemyWreckStage } from "./shipWreck";
 import type { Enemy, EnemyKind, Projectile, SuperBurstState } from "./types";
 
 const POOL_PER_KIND = MAX_ENEMIES;
@@ -33,6 +34,19 @@ interface SharedEnemyAssets {
   playerBolt: THREE.MeshStandardMaterial;
   hostileBolt: THREE.MeshStandardMaterial;
   bolt: THREE.CapsuleGeometry;
+  wreck: {
+    scorch: THREE.BoxGeometry;
+    hole: THREE.CylinderGeometry;
+    stub: THREE.BoxGeometry;
+    fire: THREE.ConeGeometry;
+    ember: THREE.SphereGeometry;
+    smoke: THREE.SphereGeometry;
+    scorchMat: THREE.MeshStandardMaterial;
+    stubMat: THREE.MeshStandardMaterial;
+    fireMat: THREE.MeshBasicMaterial;
+    emberMat: THREE.MeshBasicMaterial;
+    smokeMat: THREE.MeshBasicMaterial;
+  };
 }
 
 function createSharedAssets(): SharedEnemyAssets {
@@ -113,6 +127,46 @@ function createSharedAssets(): SharedEnemyAssets {
       emissiveIntensity: 1.15,
     }),
     bolt: new THREE.CapsuleGeometry(0.06, 0.35, 4, 8),
+    wreck: {
+      scorch: new THREE.BoxGeometry(0.22, 0.04, 0.28),
+      hole: new THREE.CylinderGeometry(0.04, 0.055, 0.08, 6),
+      stub: new THREE.BoxGeometry(0.14, 0.035, 0.16),
+      fire: new THREE.ConeGeometry(0.07, 0.28, 6),
+      ember: new THREE.SphereGeometry(0.03, 6, 6),
+      smoke: new THREE.SphereGeometry(0.12, 8, 8),
+      scorchMat: new THREE.MeshStandardMaterial({
+        color: "#1a0d0b",
+        roughness: 0.95,
+        metalness: 0.05,
+      }),
+      stubMat: new THREE.MeshStandardMaterial({
+        color: "#3a241c",
+        roughness: 0.82,
+        metalness: 0.22,
+      }),
+      fireMat: new THREE.MeshBasicMaterial({
+        color: "#ff6a28",
+        transparent: true,
+        opacity: 0.84,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        toneMapped: false,
+      }),
+      emberMat: new THREE.MeshBasicMaterial({
+        color: "#ffb347",
+        transparent: true,
+        opacity: 0.75,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        toneMapped: false,
+      }),
+      smokeMat: new THREE.MeshBasicMaterial({
+        color: "#161210",
+        transparent: true,
+        opacity: 0.42,
+        depthWrite: false,
+      }),
+    },
   };
 }
 
@@ -137,10 +191,52 @@ function disposeSharedAssets(assets: SharedEnemyAssets): void {
   assets.playerBolt.dispose();
   assets.hostileBolt.dispose();
   assets.bolt.dispose();
+  assets.wreck.scorch.dispose();
+  assets.wreck.hole.dispose();
+  assets.wreck.stub.dispose();
+  assets.wreck.fire.dispose();
+  assets.wreck.ember.dispose();
+  assets.wreck.smoke.dispose();
+  assets.wreck.scorchMat.dispose();
+  assets.wreck.stubMat.dispose();
+  assets.wreck.fireMat.dispose();
+  assets.wreck.emberMat.dispose();
+  assets.wreck.smokeMat.dispose();
+}
+
+function addWreckPart(
+  group: THREE.Group,
+  mesh: THREE.Object3D,
+  hideAt?: number,
+): void {
+  group.add(mesh);
+  if (hideAt !== undefined) {
+    mesh.userData.hideAt = hideAt;
+    const breakables = group.userData.breakables as THREE.Object3D[];
+    breakables.push(mesh);
+  }
+}
+
+function applyEnemyWreck(mesh: THREE.Group, stage: number): void {
+  if (mesh.userData.wreckStage === stage) return;
+  mesh.userData.wreckStage = stage;
+  const wreck1 = mesh.userData.wreck1 as THREE.Object3D | undefined;
+  const wreck2 = mesh.userData.wreck2 as THREE.Object3D | undefined;
+  if (wreck1) wreck1.visible = stage >= 1;
+  if (wreck2) wreck2.visible = stage >= 2;
+  const breakables = mesh.userData.breakables as THREE.Object3D[] | undefined;
+  if (!breakables) return;
+  for (let i = 0; i < breakables.length; i++) {
+    const part = breakables[i]!;
+    const hideAt = Number(part.userData.hideAt);
+    part.visible = !Number.isFinite(hideAt) || stage < hideAt;
+  }
 }
 
 function createInterceptorMesh(assets: SharedEnemyAssets): THREE.Group {
   const group = new THREE.Group();
+  group.userData.breakables = [];
+
   const body = new THREE.Mesh(assets.interceptor.body, assets.interceptor.bodyMat);
   body.rotation.x = Math.PI / 2;
   body.position.z = -0.12;
@@ -149,28 +245,56 @@ function createInterceptorMesh(assets: SharedEnemyAssets): THREE.Group {
   const wingL = new THREE.Mesh(assets.interceptor.wing, assets.interceptor.wingMat);
   wingL.position.set(-0.28, 0, 0.12);
   wingL.rotation.z = 0.55;
-  group.add(wingL);
+  addWreckPart(group, wingL, 2);
 
   const wingR = new THREE.Mesh(assets.interceptor.wing, assets.interceptor.wingMat);
   wingR.position.set(0.28, 0, 0.12);
   wingR.rotation.z = -0.55;
-  group.add(wingR);
+  addWreckPart(group, wingR, 1);
+
+  const wreck1 = new THREE.Group();
+  const scorch = new THREE.Mesh(assets.wreck.scorch, assets.wreck.scorchMat);
+  scorch.position.set(0.04, 0.08, -0.02);
+  scorch.rotation.z = 0.4;
+  wreck1.add(scorch);
+  const ember = new THREE.Mesh(assets.wreck.ember, assets.wreck.emberMat);
+  ember.position.set(0.08, 0.12, 0.06);
+  wreck1.add(ember);
+  wreck1.visible = false;
+  group.add(wreck1);
+
+  const wreck2 = new THREE.Group();
+  const stub = new THREE.Mesh(assets.wreck.stub, assets.wreck.stubMat);
+  stub.position.set(-0.16, 0.02, 0.1);
+  stub.rotation.z = 0.7;
+  wreck2.add(stub);
+  const fire = new THREE.Mesh(assets.wreck.fire, assets.wreck.fireMat);
+  fire.position.set(0, 0.1, 0.18);
+  fire.rotation.x = Math.PI / 2;
+  wreck2.add(fire);
+  wreck2.userData.fire = fire;
+  wreck2.visible = false;
+  group.add(wreck2);
 
   group.scale.setScalar(0.92);
   group.visible = false;
   group.userData.kind = "interceptor";
+  group.userData.wreck1 = wreck1;
+  group.userData.wreck2 = wreck2;
   return group;
 }
 
 function createGunshipMesh(assets: SharedEnemyAssets): THREE.Group {
   const group = new THREE.Group();
+  group.userData.breakables = [];
+
   const hull = new THREE.Mesh(assets.gunship.hull, assets.gunship.hullMat);
   group.add(hull);
 
   const nacelleL = new THREE.Mesh(assets.gunship.nacelle, assets.gunship.nacelleMat);
   nacelleL.rotation.x = Math.PI / 2;
   nacelleL.position.set(-0.62, -0.02, 0.05);
-  group.add(nacelleL);
+  addWreckPart(group, nacelleL, 2);
 
   const nacelleR = new THREE.Mesh(assets.gunship.nacelle, assets.gunship.nacelleMat);
   nacelleR.rotation.x = Math.PI / 2;
@@ -179,40 +303,97 @@ function createGunshipMesh(assets: SharedEnemyAssets): THREE.Group {
 
   const turret = new THREE.Mesh(assets.gunship.turret, assets.gunship.turretMat);
   turret.position.set(0, 0.22, 0.05);
-  group.add(turret);
+  addWreckPart(group, turret, 2);
 
   const dome = new THREE.Mesh(assets.gunship.dome, assets.gunship.turretMat);
   dome.position.set(0, 0.34, 0.05);
-  group.add(dome);
+  addWreckPart(group, dome, 1);
+
+  const wreck1 = new THREE.Group();
+  const scorch = new THREE.Mesh(assets.wreck.scorch, assets.wreck.scorchMat);
+  scorch.position.set(0.28, 0.16, 0.08);
+  scorch.scale.set(1.4, 1, 1.1);
+  wreck1.add(scorch);
+  const hole = new THREE.Mesh(assets.wreck.hole, assets.wreck.scorchMat);
+  hole.position.set(-0.2, 0.16, -0.08);
+  hole.rotation.z = Math.PI / 2;
+  wreck1.add(hole);
+  wreck1.visible = false;
+  group.add(wreck1);
+
+  const wreck2 = new THREE.Group();
+  const stub = new THREE.Mesh(assets.wreck.stub, assets.wreck.stubMat);
+  stub.position.set(-0.5, -0.02, 0.05);
+  stub.rotation.z = 0.45;
+  wreck2.add(stub);
+  const fire = new THREE.Mesh(assets.wreck.fire, assets.wreck.fireMat);
+  fire.position.set(-0.52, 0.08, 0.08);
+  fire.rotation.x = 0.9;
+  wreck2.add(fire);
+  const smoke = new THREE.Mesh(assets.wreck.smoke, assets.wreck.smokeMat);
+  smoke.position.set(0, 0.28, 0.05);
+  wreck2.add(smoke);
+  wreck2.userData.fire = fire;
+  wreck2.visible = false;
+  group.add(wreck2);
 
   group.scale.setScalar(1.05);
   group.visible = false;
   group.userData.kind = "gunship";
+  group.userData.wreck1 = wreck1;
+  group.userData.wreck2 = wreck2;
   return group;
 }
 
 function createDroneMesh(assets: SharedEnemyAssets): THREE.Group {
   const group = new THREE.Group();
+  group.userData.breakables = [];
+
   const core = new THREE.Mesh(assets.drone.core, assets.drone.coreMat);
   group.add(core);
 
   const ring = new THREE.Mesh(assets.drone.ring, assets.drone.ringMat);
   ring.rotation.x = Math.PI / 2;
-  group.add(ring);
+  addWreckPart(group, ring, 2);
   group.userData.spin = ring;
 
   const spikeA = new THREE.Mesh(assets.drone.spike, assets.drone.spikeMat);
   spikeA.position.set(0, 0.34, 0);
-  group.add(spikeA);
+  addWreckPart(group, spikeA, 1);
 
   const spikeB = new THREE.Mesh(assets.drone.spike, assets.drone.spikeMat);
   spikeB.position.set(0, -0.34, 0);
   spikeB.rotation.x = Math.PI;
-  group.add(spikeB);
+  addWreckPart(group, spikeB, 2);
+
+  const wreck1 = new THREE.Group();
+  const scorch = new THREE.Mesh(assets.wreck.scorch, assets.wreck.scorchMat);
+  scorch.position.set(0.08, 0.06, 0.04);
+  scorch.scale.set(0.7, 0.7, 0.7);
+  wreck1.add(scorch);
+  const ember = new THREE.Mesh(assets.wreck.ember, assets.wreck.emberMat);
+  ember.position.set(0.12, 0.1, 0.08);
+  wreck1.add(ember);
+  wreck1.visible = false;
+  group.add(wreck1);
+
+  const wreck2 = new THREE.Group();
+  const fire = new THREE.Mesh(assets.wreck.fire, assets.wreck.fireMat);
+  fire.position.set(0, 0.08, 0.12);
+  fire.rotation.x = 1.1;
+  wreck2.add(fire);
+  const smoke = new THREE.Mesh(assets.wreck.smoke, assets.wreck.smokeMat);
+  smoke.position.set(0, 0.16, 0);
+  wreck2.add(smoke);
+  wreck2.userData.fire = fire;
+  wreck2.visible = false;
+  group.add(wreck2);
 
   group.scale.setScalar(0.72);
   group.visible = false;
   group.userData.kind = "drone";
+  group.userData.wreck1 = wreck1;
+  group.userData.wreck2 = wreck2;
   return group;
 }
 
@@ -419,19 +600,33 @@ export function CombatMeshes({
       mesh.visible = true;
       mesh.position.set(enemy.position.x, bob, enemy.position.z);
       mesh.rotation.y = enemy.heading;
+      applyEnemyWreck(mesh, enemyWreckStage(enemy.hp, enemy.maxHp || enemy.hp));
 
       const spin = mesh.userData.spin as THREE.Object3D | undefined;
-      if (spin) spin.rotation.z += delta * 1.8;
+      if (spin && spin.visible) spin.rotation.z += delta * 1.8;
+
+      const wreck2 = mesh.userData.wreck2 as THREE.Group | undefined;
+      const fire = wreck2?.userData.fire as THREE.Object3D | undefined;
+      if (fire && wreck2?.visible) {
+        const pulse = 0.75 + Math.sin(clock.elapsedTime * 20 + enemy.id) * 0.25;
+        fire.scale.set(pulse, 0.9 + pulse * 0.45, pulse);
+      }
     }
 
     for (let i = interceptorUsed; i < pools.interceptor.length; i++) {
-      pools.interceptor[i]!.visible = false;
+      const unused = pools.interceptor[i]!;
+      unused.visible = false;
+      applyEnemyWreck(unused, 0);
     }
     for (let i = gunshipUsed; i < pools.gunship.length; i++) {
-      pools.gunship[i]!.visible = false;
+      const unused = pools.gunship[i]!;
+      unused.visible = false;
+      applyEnemyWreck(unused, 0);
     }
     for (let i = droneUsed; i < pools.drone.length; i++) {
-      pools.drone[i]!.visible = false;
+      const unused = pools.drone[i]!;
+      unused.visible = false;
+      applyEnemyWreck(unused, 0);
     }
 
     const projectiles = projectilesRef.current;

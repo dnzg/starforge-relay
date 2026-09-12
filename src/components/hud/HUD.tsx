@@ -11,9 +11,8 @@ import { MicButton } from "./MicButton";
 import { TouchControls } from "./TouchControls";
 import { OnboardingOverlay } from "./OnboardingOverlay";
 import { ControlHintStrip } from "./ControlHintStrip";
-import { ObjectiveMarker } from "./ObjectiveMarker";
+import { Minimap } from "./Minimap";
 import { SectorProgress } from "./SectorProgress";
-import { ManaMeter } from "./ManaMeter";
 import { HyperspaceOverlay } from "./HyperspaceOverlay";
 import { ShipAiAvatar } from "./ShipAiAvatar";
 
@@ -114,7 +113,9 @@ export function HUD({
   );
 
   return (
-    <div className={`hud-overlay ${logOpen ? "log-is-open" : ""} ${garageOpen ? "garage-is-open" : ""}`}>
+    <div
+      className={`hud-overlay ${logOpen ? "log-is-open" : ""} ${garageOpen ? "garage-is-open" : ""} ${run?.status === "ended" ? "gameover-is-open" : ""}`}
+    >
       <OnboardingOverlay
         suggestedName={captain?.name ?? suggestedName}
         onComplete={completeCaptainSetup}
@@ -134,11 +135,10 @@ export function HUD({
       </header>
 
       <div className="hud-objective-stack">
-        <ObjectiveMarker />
-        <ManaMeter />
         <SectorProgress />
       </div>
 
+      <Minimap />
       <ControlHintStrip visible={showHintStrip} onDismiss={dismissHints} />
 
       <TranscriptPanel />

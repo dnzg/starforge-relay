@@ -35,7 +35,7 @@ export function CommandInput({ onSubmit, disabled, jumpReady }: CommandInputProp
           type="text"
           value={value}
           onChange={(e) => setValue(e.target.value)}
-          placeholder={jumpReady ? "Say “jump” or fly into the gate…" : "Talk to the ship — try “scan the sector”"}
+          placeholder={jumpReady ? "Say “jump” or fly into the glowing ring…" : "Talk to the ship — try “scan the sector”"}
           disabled={disabled || busy}
           autoComplete="off"
           spellCheck={false}
@@ -47,7 +47,7 @@ export function CommandInput({ onSubmit, disabled, jumpReady }: CommandInputProp
       </form>
       <p className="command-voice-tip">
         {jumpReady
-          ? "Jump gate is open. Fly into the JUMP ring, or say “jump”."
+          ? "The gate is open. Fly into the glowing ring, or say “jump”."
           : "Voice examples: “scan the sector” · “status” · “jump”"}
       </p>
       <div className="quick-commands">

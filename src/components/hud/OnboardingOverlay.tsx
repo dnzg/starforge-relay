@@ -94,14 +94,14 @@ export function OnboardingOverlay({
               Clear the reach
             </h2>
             <p className="onboarding-lead stagger-item">
-              Destroy 3 hostile ships to unlock the jump gate. Follow the JUMP marker and fly through the glowing ring.
+              Destroy 3 ships to open the jump gate, then fly through the glowing ring.
             </p>
             <ul className="onboarding-list stagger-item">
               <li>
                 <strong>Fly</strong> — W dive, S climb, A left, D right
               </li>
               <li>
-                <strong>Boost</strong> — Hold Shift
+                <strong>Boost</strong> — Hold Shift (uses mana)
               </li>
               <li>
                 <strong>Fire</strong> — Hold Space, click the sector, or FIRE
@@ -110,7 +110,7 @@ export function OnboardingOverlay({
                 <strong>Super</strong> — F or Q when mana is full (SUPER on touch)
               </li>
               <li>
-                <strong>Jump</strong> — After 3 kills, fly into the JUMP gate
+                <strong>Jump</strong> — After 3 kills, fly into the glowing ring
               </li>
               <li>
                 <strong>Talk</strong> — Voice examples: “scan the sector”, “status”, “jump”

@@ -36,8 +36,8 @@ export function nextSectorSeed(currentSeed: number, jumpsCompleted: number): num
 export function sectorNameFromSeed(seed: number): string {
   const h = hashSeed(seed);
   const prefix = SECTOR_PREFIXES[h % SECTOR_PREFIXES.length];
-  const suffix = SECTOR_SUFFIXES[(h >> 4) % SECTOR_SUFFIXES.length];
-  const num = ((h >> 8) % 900) + 100;
+  const suffix = SECTOR_SUFFIXES[(h >>> 4) % SECTOR_SUFFIXES.length];
+  const num = ((h >>> 8) % 900) + 100;
   return `${prefix} ${suffix} ${num}`;
 }
 

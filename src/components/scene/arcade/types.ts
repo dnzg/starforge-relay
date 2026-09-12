@@ -35,6 +35,7 @@ export interface Enemy {
   position: Vec2;
   rotation: number;
   hp: number;
+  maxHp: number;
   speed: number;
   radius: number;
   heading: number;

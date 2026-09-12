@@ -5,6 +5,7 @@ import type { ArcadeInputState } from "../../../hooks/useArcadeInput";
 import {
   arcadeUiRef,
   KILLS_FOR_JUMP,
+  MANA_BOOST_PER_SECOND,
   MANA_MAX,
   MANA_PER_KILL,
   MANA_PER_SECOND,
@@ -16,10 +17,10 @@ import {
   type CombatVfxApi,
 } from "../../../lib/combat/combatVfx";
 import { PlayerShipMesh } from "./PlayerShipMesh";
+import { BoostStreaks } from "./BoostStreaks";
 import { CombatMeshes } from "./CombatMeshes";
 import { CombatVfx } from "./CombatVfx";
 import { JumpGateMesh } from "./JumpGateMesh";
-import { WorldObjectiveLabels } from "./WorldObjectiveLabels";
 import {
   applyArcadeFlight,
   CAM_BACK,
@@ -34,7 +35,6 @@ import { lerpAngle, noseDirection } from "./shipGeometry";
 import {
   enemyContactRadius,
   enemyHitRadius,
-  MAX_ENEMIES,
   MAX_PROJECTILES,
   SECTOR_BOUNDS,
   spawnEnemy,
@@ -51,6 +51,7 @@ import {
   type Projectile,
   type SuperBurstState,
 } from "./types";
+import { playSfx, setBoostAudio, sfxPan } from "../../../lib/audio/gameAudio";
 
 const PLAYER_SPEED = 9;
 const BOOST_MULT = 1.75;
@@ -67,12 +68,15 @@ const SUPER_TTL = 1.75;
 const NOVA_RADIUS = 4.8;
 const NOVA_DAMAGE = 3;
 const MANA_LOCK_AFTER_SUPER = 0.85;
-const ENEMY_SPAWN_INTERVAL = 2.4;
 const MAX_DELTA = 0.05;
+const TIME_SCALE_LERP = 7;
+const SECTOR_ENEMY_MIN = 5;
+const SECTOR_ENEMY_MAX = 8;
 const JUMP_GATE_RADIUS = 2.2;
 const BASE_FOV = 60;
-const BOOST_FOV = 68;
+const BOOST_FOV = 76;
 const WARP_FOV = 72;
+const BOOST_CAM_BACK = 1.35;
 
 const _nose = new THREE.Vector3();
 const _shake = new THREE.Vector3();
@@ -117,7 +121,11 @@ function resetGameState(
   superBurstRef.current.active = false;
   resetArcadeUiForSector();
 
-  const initialCount = Math.min(5, 2 + Math.floor(threatLevel / 2));
+  const initialCount = THREE.MathUtils.clamp(
+    SECTOR_ENEMY_MIN + Math.floor(threatLevel / 2),
+    SECTOR_ENEMY_MIN,
+    SECTOR_ENEMY_MAX,
+  );
   for (let i = 0; i < initialCount; i++) {
     enemiesRef.current.push(
       spawnEnemy(
@@ -173,6 +181,7 @@ function resolveCollisions(
   vfxApi: CombatVfxApi,
   manaRef: RefObject<number>,
   manaLockRef: RefObject<number>,
+  playerX: number,
 ): void {
   let surviving = 0;
   for (let ei = 0; ei < enemies.length; ei++) {
@@ -204,6 +213,7 @@ function resolveCollisions(
     if (hp <= 0) {
       spawnExplosion(explosions, enemy.position.x, enemy.position.z);
       vfxApi.spawnBurst(enemy.position.x, enemy.position.z, "enemy");
+      playSfx("explosion", { pan: sfxPan(enemy.position.x, playerX) });
       shakeRef.current = Math.max(shakeRef.current, 0.55);
       callbacks.onEnemyKilled();
       sectorKillsRef.current += 1;
@@ -215,10 +225,12 @@ function resolveCollisions(
         !jumpGateRef.current.active
       ) {
         jumpGateRef.current.active = true;
+        playSfx("gate_unlock");
       }
     } else {
       if (hit) {
         vfxApi.spawnImpact(enemy.position.x, enemy.position.z);
+        playSfx("impact", { pan: sfxPan(enemy.position.x, playerX) });
       }
       enemy.hp = hp;
       enemies[surviving++] = enemy;
@@ -235,39 +247,34 @@ function updateObjectiveTarget(
 ): void {
   arcadeUiRef.playerX = player.position.x;
   arcadeUiRef.playerZ = player.position.z;
+  arcadeUiRef.playerHeading = player.rotation;
   arcadeUiRef.sectorKills = sectorKills;
   arcadeUiRef.killsRequired = KILLS_FOR_JUMP;
   arcadeUiRef.jumpGateUnlocked = jumpGate.active;
   arcadeUiRef.jumpGateX = jumpGate.position.x;
   arcadeUiRef.jumpGateZ = jumpGate.position.z;
 
-  if (jumpGate.active) {
-    arcadeUiRef.targetType = "gate";
-    arcadeUiRef.targetX = jumpGate.position.x;
-    arcadeUiRef.targetZ = jumpGate.position.z;
-    return;
-  }
-
-  let nearest: Enemy | null = null;
-  let nearestDist = Infinity;
-  for (let i = 0; i < enemies.length; i++) {
+  let blipCount = 0;
+  const blips = arcadeUiRef.blips;
+  for (let i = 0; i < enemies.length && blipCount < blips.length; i++) {
     const enemy = enemies[i]!;
-    const d = dist2(player.position, enemy.position);
-    if (d < nearestDist) {
-      nearestDist = d;
-      nearest = enemy;
-    }
+    const blip = blips[blipCount]!;
+    blip.x = enemy.position.x;
+    blip.z = enemy.position.z;
+    blip.kind = "enemy";
+    blipCount += 1;
   }
-
-  if (nearest) {
-    arcadeUiRef.targetType = "enemy";
-    arcadeUiRef.targetX = nearest.position.x;
-    arcadeUiRef.targetZ = nearest.position.z;
-  } else {
-    arcadeUiRef.targetType = "none";
-    arcadeUiRef.targetX = player.position.x;
-    arcadeUiRef.targetZ = player.position.z;
+  if (jumpGate.active && blipCount < blips.length) {
+    const blip = blips[blipCount]!;
+    blip.x = jumpGate.position.x;
+    blip.z = jumpGate.position.z;
+    blip.kind = "gate";
+    blipCount += 1;
   }
+  arcadeUiRef.blipCount = blipCount;
+  arcadeUiRef.targetType = "none";
+  arcadeUiRef.targetX = player.position.x;
+  arcadeUiRef.targetZ = player.position.z;
 }
 
 interface ArcadeGameLoopProps {
@@ -287,14 +294,14 @@ export function ArcadeGameLoop({
   getInput,
   callbacks,
 }: ArcadeGameLoopProps) {
-  const { camera, clock } = useThree();
+  const { camera, clock, gl } = useThree();
+  const viewportElRef = useRef<HTMLElement | null>(null);
   const playerRef = useRef<PlayerState>(createInitialPlayer());
   const enemiesRef = useRef<Enemy[]>([]);
   const projectilesRef = useRef<Projectile[]>([]);
   const explosionsRef = useRef<ExplosionSlot[]>(createExplosionPool());
   const nextIdRef = useRef(1);
   const fireCooldownRef = useRef(0);
-  const spawnTimerRef = useRef(0);
   const sectorKeyRef = useRef("");
   const invulnRef = useRef(false);
   const sectorKillsRef = useRef(0);
@@ -308,6 +315,10 @@ export function ArcadeGameLoop({
   const shakeRef = useRef(0);
   const turnRateRef = useRef(0);
   const jumpGateTriggeredRef = useRef(false);
+  const boostHeldRef = useRef(false);
+  const boostSmoothRef = useRef(0);
+  const boostVisualRef = useRef(0);
+  const boostPunchRef = useRef(0);
   const manaRef = useRef(0);
   const manaLockRef = useRef(0);
   const superBurstRef = useRef<SuperBurstState>({
@@ -328,7 +339,19 @@ export function ArcadeGameLoop({
   }, [camera]);
 
   useEffect(() => {
+    return () => {
+      viewportElRef.current?.style.setProperty("--boost", "0");
+      setBoostAudio(0);
+    };
+  }, []);
+
+  useEffect(() => {
     jumpGateTriggeredRef.current = false;
+    boostHeldRef.current = false;
+    boostSmoothRef.current = 0;
+    boostVisualRef.current = 0;
+    boostPunchRef.current = 0;
+    setBoostAudio(0);
     resetGameState(
       playerRef,
       enemiesRef,
@@ -348,14 +371,33 @@ export function ArcadeGameLoop({
   }, [sectorKey, threatLevel, vfx.api]);
 
   useFrame((_, delta) => {
-    const dt = clampDelta(delta);
+    const rawDt = clampDelta(delta);
+    const ui = arcadeUiRef;
+    ui.worldTimeScale +=
+      (ui.worldTimeScaleTarget - ui.worldTimeScale) *
+      (1 - Math.exp(-TIME_SCALE_LERP * rawDt));
+    if (Math.abs(ui.worldTimeScale - ui.worldTimeScaleTarget) < 0.002) {
+      ui.worldTimeScale = ui.worldTimeScaleTarget;
+    }
+    const dt = rawDt * ui.worldTimeScale;
     const player = playerRef.current;
     const persp =
       camera instanceof THREE.PerspectiveCamera ? camera : null;
 
     if (enabled) {
       const input = getInput();
-      const boost = input.boost ? BOOST_MULT : 1;
+      const canBoost = input.boost && manaRef.current > 0;
+      if (canBoost && !boostHeldRef.current) {
+        playSfx("boost");
+        boostPunchRef.current = 1;
+      }
+      boostHeldRef.current = canBoost;
+      if (canBoost) {
+        manaRef.current = writeMana(
+          manaRef.current - MANA_BOOST_PER_SECOND * dt,
+        );
+      }
+      const boost = canBoost ? BOOST_MULT : 1;
       const speed = PLAYER_SPEED * boost * dt;
       const previousYaw = player.rotation;
 
@@ -402,10 +444,11 @@ export function ArcadeGameLoop({
           kind: "bolt",
         });
         vfx.api.spawnMuzzle(muzzleX, muzzleZ, _nose.x, _nose.z);
+        playSfx("player_laser");
       }
 
       manaLockRef.current = Math.max(0, manaLockRef.current - dt);
-      if (manaLockRef.current <= 0) {
+      if (manaLockRef.current <= 0 && !canBoost) {
         manaRef.current = writeMana(manaRef.current + MANA_PER_SECOND * dt);
       }
       if (input.superPressed && manaRef.current >= MANA_MAX) {
@@ -430,6 +473,7 @@ export function ArcadeGameLoop({
         triggerSuperBurst(superBurstRef.current, player.position.x, player.position.z);
         vfx.api.spawnBurst(player.position.x, player.position.z, "player");
         shakeRef.current = Math.max(shakeRef.current, 0.95);
+        playSfx("super");
       }
       if (superBurstRef.current.active) {
         superBurstRef.current.age += dt;
@@ -439,26 +483,6 @@ export function ArcadeGameLoop({
       }
 
       updateProjectiles(projectilesRef.current, dt);
-
-      spawnTimerRef.current += dt;
-      const maxEnemies = Math.min(
-        MAX_ENEMIES,
-        6 + Math.floor(threatLevel / 2),
-      );
-      if (
-        spawnTimerRef.current >= ENEMY_SPAWN_INTERVAL &&
-        enemiesRef.current.length < maxEnemies
-      ) {
-        spawnTimerRef.current = 0;
-        enemiesRef.current.push(
-          spawnEnemy(
-            nextIdRef.current++,
-            player,
-            threatLevel,
-            enemiesRef.current,
-          ),
-        );
-      }
 
       updateEnemies(
         enemiesRef.current,
@@ -480,6 +504,7 @@ export function ArcadeGameLoop({
         vfx.api,
         manaRef,
         manaLockRef,
+        player.position.x,
       );
 
       if (!invulnRef.current) {
@@ -520,6 +545,7 @@ export function ArcadeGameLoop({
           invulnRef.current = true;
           shakeRef.current = Math.max(shakeRef.current, 0.7);
           vfx.api.spawnBurst(player.position.x, player.position.z, "player");
+          playSfx("player_hit");
         }
       }
 
@@ -547,10 +573,30 @@ export function ArcadeGameLoop({
       player.rotation,
       1 - Math.exp(-3.1 * dt),
     );
+    const boostHeld = enabled && boostHeldRef.current;
+    boostSmoothRef.current +=
+      ((boostHeld ? 1 : 0) - boostSmoothRef.current) *
+      (1 - Math.exp(-9 * dt));
+    boostPunchRef.current = Math.max(0, boostPunchRef.current - dt * 3.1);
+    const boostVisual = Math.min(
+      1.2,
+      boostSmoothRef.current + boostPunchRef.current * 0.55,
+    );
+    boostVisualRef.current = boostVisual;
+    if (!viewportElRef.current) {
+      viewportElRef.current = gl.domElement.closest(".viewport");
+    }
+    viewportElRef.current?.style.setProperty(
+      "--boost",
+      boostVisual.toFixed(3),
+    );
+    setBoostAudio(boostVisual);
+    const camBack = CAM_BACK + boostVisual * BOOST_CAM_BACK;
+
     cameraTarget.current.set(
-      player.position.x + Math.sin(camYawRef.current) * CAM_BACK,
-      CAM_HEIGHT + player.pitch * 0.85,
-      player.position.z + Math.cos(camYawRef.current) * CAM_BACK,
+      player.position.x + Math.sin(camYawRef.current) * camBack,
+      CAM_HEIGHT + player.pitch * 0.85 - boostVisual * 0.18,
+      player.position.z + Math.cos(camYawRef.current) * camBack,
     );
     shakeRef.current = Math.max(0, shakeRef.current - dt * 2.4);
     if (shakeRef.current > 0) {
@@ -559,6 +605,15 @@ export function ArcadeGameLoop({
         Math.sin(player.invulnTimer * 38) * s * 0.28,
         Math.cos(player.invulnTimer * 27) * s * 0.12,
         Math.sin(player.invulnTimer * 21) * s * 0.22,
+      );
+      cameraTarget.current.add(_shake);
+    }
+    if (boostVisual > 0.04) {
+      const t = clock.elapsedTime;
+      _shake.set(
+        Math.sin(t * 51) * boostVisual * 0.045,
+        Math.cos(t * 37) * boostVisual * 0.028,
+        Math.sin(t * 29) * boostVisual * 0.032,
       );
       cameraTarget.current.add(_shake);
     }
@@ -576,9 +631,7 @@ export function ArcadeGameLoop({
     if (persp) {
       const targetFov = hyperspaceActive
         ? WARP_FOV
-        : enabled && getInput().boost
-          ? BOOST_FOV
-          : BASE_FOV;
+        : THREE.MathUtils.lerp(BASE_FOV, BOOST_FOV, Math.min(1, boostVisual));
       persp.fov += (targetFov - persp.fov) * (1 - Math.exp(-5 * dt));
       persp.updateProjectionMatrix();
     }
@@ -586,7 +639,12 @@ export function ArcadeGameLoop({
 
   return (
     <>
-      <PlayerShipMesh playerRef={playerRef} invulnRef={invulnRef} />
+      <PlayerShipMesh
+        playerRef={playerRef}
+        invulnRef={invulnRef}
+        boostIntensityRef={boostVisualRef}
+      />
+      <BoostStreaks intensityRef={boostVisualRef} />
       <CombatMeshes
         enemiesRef={enemiesRef}
         projectilesRef={projectilesRef}
@@ -595,7 +653,6 @@ export function ArcadeGameLoop({
       <CombatVfx vfx={vfx} />
       <ExplosionBursts explosionsRef={explosionsRef} />
       <JumpGateMesh gateRef={jumpGateRef} />
-      <WorldObjectiveLabels jumpGateRef={jumpGateRef} />
     </>
   );
 }

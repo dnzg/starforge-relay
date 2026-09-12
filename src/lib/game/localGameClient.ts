@@ -72,9 +72,9 @@ export function createLocalGameClient(): GameClient & {
       if (hull <= 0) {
         run = {
           ...run,
-          shields: 100,
-          hull: 100,
-          status: "active",
+          shields: 0,
+          hull: 0,
+          status: "ended",
         };
       } else {
         run = { ...run, shields, hull };

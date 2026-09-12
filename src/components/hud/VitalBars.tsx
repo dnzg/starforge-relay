@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { arcadeUiRef, MANA_MAX } from "../../lib/combat/arcadeUiRef";
 
 interface VitalBarsProps {
   hull: number;
@@ -22,12 +23,13 @@ function MkBar({
 }: {
   label: string;
   value: number;
-  kind: "hull" | "shields";
+  kind: "hull" | "shields" | "mana";
 }) {
   const percent = clampPercent(value);
   const prevRef = useRef(percent);
   const [ghost, setGhost] = useState(percent);
   const [flash, setFlash] = useState(false);
+  const ready = kind === "mana" && percent >= 100;
 
   useEffect(() => {
     if (percent < prevRef.current) {
@@ -44,13 +46,13 @@ function MkBar({
     setGhost(percent);
   }, [percent]);
 
-  const tone = kind === "shields" ? "shields" : hullTone(percent);
+  const tone = kind === "shields" ? "shields" : kind === "mana" ? "mana" : hullTone(percent);
 
   return (
-    <div className={`mk-bar mk-bar-${kind} ${flash ? "is-flash" : ""}`}>
+    <div className={`mk-bar mk-bar-${kind} ${flash ? "is-flash" : ""} ${ready ? "is-ready" : ""}`}>
       <div className="mk-bar-meta">
         <span>{label}</span>
-        <strong>{Math.round(percent)}</strong>
+        <strong>{ready ? "READY" : Math.round(percent)}</strong>
       </div>
       <div
         className="mk-bar-track"
@@ -68,10 +70,20 @@ function MkBar({
 }
 
 export function VitalBars({ hull, shields }: VitalBarsProps) {
+  const [mana, setMana] = useState(0);
+
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      setMana((arcadeUiRef.mana / MANA_MAX) * 100);
+    }, 100);
+    return () => window.clearInterval(interval);
+  }, []);
+
   return (
-    <div className="mk-bars" aria-label="Hull and shields">
+    <div className="mk-bars" aria-label="Hull, shields, and mana">
       <MkBar label="Shields" value={shields} kind="shields" />
       <MkBar label="Hull" value={hull} kind="hull" />
+      <MkBar label="Mana" value={mana} kind="mana" />
     </div>
   );
 }

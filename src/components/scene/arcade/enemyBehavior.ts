@@ -1,3 +1,4 @@
+import { playSfx, sfxPan } from "../../../lib/audio/gameAudio";
 import {
   ENEMY_KINDS,
   dist2,
@@ -37,7 +38,7 @@ const ARCHETYPES: Record<EnemyKind, ArchetypeConfig> = {
   interceptor: {
     kind: "interceptor",
     pattern: "chase",
-    hp: (threat) => 2 + Math.floor(threat / 4),
+    hp: (threat) => 3 + Math.floor(threat / 4),
     speed: (threat) => 4.15 + threat * 0.16,
     radius: 0.55,
     preferredRange: 1.35,
@@ -61,7 +62,7 @@ const ARCHETYPES: Record<EnemyKind, ArchetypeConfig> = {
   drone: {
     kind: "drone",
     pattern: "sniper_hover",
-    hp: (threat) => 1 + Math.floor(threat / 5),
+    hp: (threat) => 3 + Math.floor(threat / 5),
     speed: (threat) => 2.7 + threat * 0.1,
     radius: 0.42,
     preferredRange: 10.8,
@@ -174,12 +175,14 @@ export function spawnEnemy(
     archetype.spawnRadiusMax,
   );
   const rangeJitter = (Math.random() - 0.5) * 1.4;
+  const hp = archetype.hp(threatLevel);
 
   return {
     id,
     kind,
     position,
-    hp: archetype.hp(threatLevel),
+    hp,
+    maxHp: hp,
     speed: archetype.speed(threatLevel),
     radius: archetype.radius,
     heading: Math.atan2(
@@ -220,6 +223,7 @@ function applySeparation(enemies: Enemy[], index: number): typeof sepScratch {
 
 function tryEnemyShot(
   enemy: Enemy,
+  player: PlayerState,
   nx: number,
   nz: number,
   dist: number,
@@ -248,6 +252,7 @@ function tryEnemyShot(
     owner: "enemy",
     kind: "bolt",
   });
+  playSfx("enemy_laser", { pan: sfxPan(enemy.position.x, player.position.x) });
   enemy.fireCooldown = archetype.fireInterval + Math.random() * 0.28;
 }
 
@@ -317,6 +322,6 @@ export function updateEnemies(
       enemy.kind === "interceptor" ? Math.atan2(vx, vz) : Math.atan2(dx, dz);
     enemy.rotation = enemy.heading;
 
-    tryEnemyShot(enemy, nx, nz, dist, dt, projectiles, nextId);
+    tryEnemyShot(enemy, player, nx, nz, dist, dt, projectiles, nextId);
   }
 }

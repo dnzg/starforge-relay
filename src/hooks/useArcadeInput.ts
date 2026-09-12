@@ -1,4 +1,5 @@
 import { useEffect, useRef, useCallback } from "react";
+import { unlockGameAudio } from "../lib/audio/gameAudio";
 
 export interface ArcadeInputState {
   moveX: number;
@@ -96,6 +97,7 @@ export function useArcadeInput(enabled: boolean) {
     if (!enabled) return;
 
     const onKeyDown = (event: KeyboardEvent) => {
+      unlockGameAudio();
       if (isTypingTarget(event.target)) return;
       switch (event.code) {
         case "ArrowUp":
@@ -173,6 +175,7 @@ export function useArcadeInput(enabled: boolean) {
     };
 
     const onMouseDown = (event: MouseEvent) => {
+      unlockGameAudio();
       if (event.button !== 0) {
         if (event.button === 2) {
           event.preventDefault();
@@ -215,6 +218,7 @@ export function useArcadeInput(enabled: boolean) {
 
   const setTouchMove = useCallback(
     (moveX: number, moveY: number) => {
+      unlockGameAudio();
       touchRef.current.moveX = moveX;
       touchRef.current.moveY = moveY;
       recompute();
@@ -224,6 +228,7 @@ export function useArcadeInput(enabled: boolean) {
 
   const setTouchFire = useCallback(
     (active: boolean) => {
+      unlockGameAudio();
       touchRef.current.fire = active;
       recompute();
     },

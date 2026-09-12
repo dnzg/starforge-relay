@@ -20,6 +20,8 @@ import { generateSectorPackage } from "../lib/sector/sectorPackage";
 import type { CombatCallbacks } from "../components/scene/arcade/types";
 import { createCombatEventQueue } from "../lib/combat/combatEventQueue";
 import { HYPERSPACE_MS } from "../lib/game/hyperspace";
+import { playSfx } from "../lib/audio/gameAudio";
+import { writeHull } from "../lib/combat/arcadeUiRef";
 import {
   loadCaptainProfile,
   type CaptainGender,
@@ -41,6 +43,7 @@ interface GameContextValue extends GameClient {
   jumpGateUnlocked: boolean;
   combatCallbacks: CombatCallbacks;
   triggerSectorJump: () => Promise<void>;
+  restartRun: () => Promise<void>;
   markPlanetTextureReady: () => void;
   appendShipMessage: (
     heardText: string,
@@ -109,6 +112,10 @@ export function GameProvider({
   }, [client]);
 
   useEffect(() => {
+    writeHull(client.run?.hull ?? 100);
+  }, [client.run?.hull]);
+
+  useEffect(() => {
     if (started || !captain) return;
     setStarted(true);
     void client.startRun(captain.name || displayName);
@@ -120,6 +127,7 @@ export function GameProvider({
   }, []);
 
   const beginHyperspaceTransition = useCallback(() => {
+    playSfx("hyperspace");
     setHyperspaceActive(true);
     setLastHyperspaceAt(Date.now());
     window.setTimeout(() => setHyperspaceActive(false), HYPERSPACE_MS);
@@ -233,6 +241,19 @@ export function GameProvider({
     jumpPendingRef.current = false;
   }, [beginHyperspaceTransition, client, loadSectorAssets]);
 
+  const restartRun = useCallback(async () => {
+    if (!captain) return;
+    jumpPendingRef.current = false;
+    setHyperspaceActive(false);
+    setCombatScore(0);
+    sectorKillsRef.current = 0;
+    setSectorKills(0);
+    setJumpGateUnlocked(false);
+    toldRef.current = { firstBlood: false, hullLow: false, gate: false };
+    loadedSectorKeyRef.current = null;
+    await client.startRun(captain.name || displayName);
+  }, [captain, client, displayName]);
+
   useEffect(() => {
     const interval = window.setInterval(() => {
       const snapshot = combatQueueRef.current.flush();
@@ -262,7 +283,7 @@ export function GameProvider({
           toldRef.current.gate = true;
           void client.appendShipMessage(
             "combat",
-            "Jump gate unlocked. Fly into the glowing JUMP ring — or say jump if you have fuel.",
+            "Jump gate unlocked. Fly into the glowing ring — or say jump if you have fuel.",
             "text",
           );
         }
@@ -270,6 +291,15 @@ export function GameProvider({
 
       if (snapshot.damage > 0) {
         client.applyCombatDamage(snapshot.damage);
+        if (client.run?.status === "ended") {
+          const name = captain?.name ?? "Captain";
+          void client.appendShipMessage(
+            "combat",
+            `Hull gone, ${name}. I pulled the log. The ship did not make it.`,
+            "text",
+          );
+          return;
+        }
         const hull = client.run?.hull ?? 100;
         if (hull <= 40 && !toldRef.current.hullLow) {
           toldRef.current.hullLow = true;
@@ -355,6 +385,7 @@ export function GameProvider({
     jumpGateUnlocked,
     combatCallbacks,
     triggerSectorJump,
+    restartRun,
     markPlanetTextureReady,
     captain,
     suggestedName: displayName,

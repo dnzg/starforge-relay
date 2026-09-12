@@ -2,9 +2,11 @@ import { useEffect, useRef, useState } from "react";
 import { ArcadeScene } from "./components/scene/ArcadeScene";
 import { HUD } from "./components/hud/HUD";
 import { GarageOverlay } from "./components/hud/GarageOverlay";
+import { GameOverOverlay } from "./components/hud/GameOverOverlay";
 import { useTelegramWebApp } from "./hooks/useTelegramWebApp";
 import { useArcadeInput } from "./hooks/useArcadeInput";
 import { GameProvider, useGame } from "./providers/GameProvider";
+import { installGameAudioUnlock } from "./lib/audio/gameAudio";
 
 function isGameSurface(target: EventTarget | null): boolean {
   return (
@@ -31,13 +33,21 @@ function GameShell() {
   const sectorKey = run ? `${run.id}:${run.sectorSeed}` : "boot";
 
   useEffect(() => {
+    if (run?.status === "ended") setGarageOpen(false);
+  }, [run?.status]);
+
+  useEffect(() => {
     const onContextMenu = (event: MouseEvent) => {
       if (isGameSurface(event.target)) {
         event.preventDefault();
       }
     };
     window.addEventListener("contextmenu", onContextMenu, true);
-    return () => window.removeEventListener("contextmenu", onContextMenu, true);
+    const uninstallAudio = installGameAudioUnlock();
+    return () => {
+      window.removeEventListener("contextmenu", onContextMenu, true);
+      uninstallAudio();
+    };
   }, []);
 
   return (
@@ -71,9 +81,10 @@ function GameShell() {
           garageOpen={garageOpen}
           onGarageOpenChange={setGarageOpen}
         />
-        {garageOpen ? (
+        {garageOpen && run?.status === "active" ? (
           <GarageOverlay onClose={() => setGarageOpen(false)} />
         ) : null}
+        <GameOverOverlay />
       </div>
     </div>
   );
