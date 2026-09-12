@@ -9,14 +9,11 @@ import { TranscriptDrawer, TranscriptPanel } from "./TranscriptPanel";
 import { CommandInput } from "./CommandInput";
 import { MicButton } from "./MicButton";
 import { TouchControls } from "./TouchControls";
-import { OnboardingOverlay } from "./OnboardingOverlay";
 import { ControlHintStrip } from "./ControlHintStrip";
 import { Minimap } from "./Minimap";
 import { SectorProgress } from "./SectorProgress";
 import { HyperspaceOverlay } from "./HyperspaceOverlay";
 import { ShipAiAvatar } from "./ShipAiAvatar";
-import { ConvexBadge } from "./ConvexBadge";
-import { LeaderboardPanel } from "./LeaderboardPanel";
 
 interface HUDProps {
   onTouchMove: (x: number, y: number) => void;
@@ -42,15 +39,12 @@ export function HUD({
     appendShipMessage,
     sectorKills,
     captain,
-    suggestedName,
-    completeCaptainSetup,
   } = useGame();
   const disabled = loading || !run || run.status !== "active" || garageOpen;
   const [hintDismissed, setHintDismissed] = useState(false);
-  const [briefingOpen, setBriefingOpen] = useState(true);
   const [logOpen, setLogOpen] = useState(false);
   const dismissHints = useCallback(() => setHintDismissed(true), []);
-  const showHintStrip = !hintDismissed && !briefingOpen;
+  const showHintStrip = !hintDismissed;
   const [gateOpen, setGateOpen] = useState(false);
   const [voiceListening, setVoiceListening] = useState(false);
   const [voiceProcessing, setVoiceProcessing] = useState(false);
@@ -206,11 +200,6 @@ export function HUD({
     <div
       className={`hud-overlay ${logOpen ? "log-is-open" : ""} ${garageOpen ? "garage-is-open" : ""} ${run?.status === "ended" ? "gameover-is-open" : ""}`}
     >
-      <OnboardingOverlay
-        suggestedName={captain?.name ?? suggestedName}
-        onComplete={completeCaptainSetup}
-        onReady={() => setBriefingOpen(false)}
-      />
       <HyperspaceOverlay />
 
       <header className="hud-chrome hud-chrome-top">
@@ -224,11 +213,9 @@ export function HUD({
         <div className="hud-status-col">
           <StatusPanel compact />
           <SectorProgress />
-          <ConvexBadge />
         </div>
       </header>
 
-      <LeaderboardPanel compact />
       <Minimap />
       <ControlHintStrip visible={showHintStrip} onDismiss={dismissHints} />
 

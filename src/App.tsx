@@ -8,6 +8,7 @@ import {
   useTelegramWebApp,
 } from "./hooks/useTelegramWebApp";
 import { useArcadeInput } from "./hooks/useArcadeInput";
+import { StartMenuOverlay } from "./components/hud/StartMenuOverlay";
 import { GameProvider, useGame } from "./providers/GameProvider";
 import { installGameAudioUnlock } from "./lib/audio/gameAudio";
 
@@ -20,6 +21,7 @@ function isGameSurface(target: EventTarget | null): boolean {
 
 function GameShell() {
   const {
+    phase,
     run,
     hyperspaceActive,
     skyTextureUrl,
@@ -28,7 +30,9 @@ function GameShell() {
   } = useGame();
   const { isTelegram, webApp } = useTelegramWebApp();
   const [garageOpen, setGarageOpen] = useState(false);
-  const combatEnabled = Boolean(run && run.status === "active") && !garageOpen;
+  const inMenu = phase === "menu";
+  const combatEnabled =
+    !inMenu && Boolean(run && run.status === "active") && !garageOpen;
   const arcadeInput = useArcadeInput(combatEnabled);
   const getInputRef = useRef(arcadeInput.getState);
   getInputRef.current = arcadeInput.getState;
@@ -94,18 +98,21 @@ function GameShell() {
           combatCallbacks={combatCallbacks}
           onPlanetTextureReady={markPlanetTextureReady}
         />
-        <HUD
-          onTouchMove={arcadeInput.setTouchMove}
-          onTouchBoost={arcadeInput.setTouchBoost}
-          onTouchFire={arcadeInput.setTouchFire}
-          onTouchSuper={arcadeInput.setTouchSuper}
-          garageOpen={garageOpen}
-          onGarageOpenChange={setGarageOpen}
-        />
-        {garageOpen && run?.status === "active" ? (
+        {inMenu ? <StartMenuOverlay /> : null}
+        {!inMenu ? (
+          <HUD
+            onTouchMove={arcadeInput.setTouchMove}
+            onTouchBoost={arcadeInput.setTouchBoost}
+            onTouchFire={arcadeInput.setTouchFire}
+            onTouchSuper={arcadeInput.setTouchSuper}
+            garageOpen={garageOpen}
+            onGarageOpenChange={setGarageOpen}
+          />
+        ) : null}
+        {garageOpen && run?.status === "active" && !inMenu ? (
           <GarageOverlay onClose={() => setGarageOpen(false)} />
         ) : null}
-        <GameOverOverlay />
+        {!inMenu ? <GameOverOverlay /> : null}
       </div>
     </div>
   );

@@ -1,19 +1,47 @@
 import { useGame } from "../../providers/GameProvider";
 
-export function LeaderboardPanel({ compact = false }: { compact?: boolean }) {
+export function LeaderboardPanel({
+  embedded = false,
+}: {
+  embedded?: boolean;
+}) {
   const { backend, leaderboard, loading } = useGame();
 
-  if (backend !== "convex" || loading) return null;
+  if (loading && backend === "convex") {
+    return (
+      <section
+        className={embedded ? "leaderboard-panel embedded" : "leaderboard-panel"}
+        aria-label="Relay leaderboard"
+      >
+        <p className="leaderboard-empty">Loading scores…</p>
+      </section>
+    );
+  }
+
+  if (backend !== "convex") {
+    return (
+      <section
+        className={embedded ? "leaderboard-panel embedded" : "leaderboard-panel"}
+        aria-label="Relay leaderboard"
+      >
+        <p className="leaderboard-empty">
+          Scores appear here when the relay backend is online.
+        </p>
+      </section>
+    );
+  }
 
   return (
     <section
-      className={compact ? "leaderboard-panel compact" : "leaderboard-panel"}
-      aria-label="Live leaderboard"
+      className={embedded ? "leaderboard-panel embedded" : "leaderboard-panel"}
+      aria-label="Relay leaderboard"
     >
-      <div className="leaderboard-header">
-        <span className="leaderboard-title">Relay leaderboard</span>
-        <span className="leaderboard-sync">Synced via Convex</span>
-      </div>
+      {!embedded ? (
+        <div className="leaderboard-header">
+          <span className="leaderboard-title">Relay leaderboard</span>
+          <span className="leaderboard-subtitle">Top captains</span>
+        </div>
+      ) : null}
       {leaderboard.length === 0 ? (
         <p className="leaderboard-empty">No scores yet — be the first captain.</p>
       ) : (
