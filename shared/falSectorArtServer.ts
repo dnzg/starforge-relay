@@ -101,6 +101,7 @@ export async function generateFalSectorArtServer(
         output_format: "jpeg",
         enable_safety_checker: true,
       }),
+      signal: AbortSignal.timeout(25_000),
     });
 
     if (!response.ok) {
@@ -153,18 +154,29 @@ export function buildShipLiveryPrompt(userPrompt: string): string {
   ].join(" ");
 }
 
+function hashPrompt(value: string): number {
+  let hash = 2166136261;
+  for (let i = 0; i < value.length; i++) {
+    hash ^= value.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return Math.abs(hash) % 1_000_000_000;
+}
+
 export async function handleShipLiveryRequest(
   body: string,
   falKey?: string,
 ): Promise<FalSectorArtPayload> {
   let prompt = "graphite titanium hull with a thin crimson stripe";
-  let seed = Math.floor(Math.random() * 1_000_000);
+  let seed = hashPrompt(prompt);
   if (body) {
     try {
       const parsed = JSON.parse(body) as { prompt?: string; seed?: number };
       if (parsed.prompt?.trim()) prompt = parsed.prompt.trim();
       if (typeof parsed.seed === "number" && Number.isFinite(parsed.seed)) {
         seed = Math.floor(parsed.seed);
+      } else {
+        seed = hashPrompt(prompt);
       }
     } catch {
       // keep defaults

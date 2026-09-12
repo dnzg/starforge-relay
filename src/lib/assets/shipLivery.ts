@@ -18,18 +18,25 @@ export async function generateShipLivery(prompt: string): Promise<{
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ prompt: trimmed }),
   });
-  if (!response.ok) {
-    return { textureUrl: null, error: `Livery API ${response.status}` };
-  }
-  const payload = (await response.json()) as {
+  const payload = (await response.json().catch(() => ({}))) as {
     textureUrl?: string | null;
     error?: string;
   };
   if (payload.textureUrl) {
     memoryCache.set(trimmed.toLowerCase(), payload.textureUrl);
+    return { textureUrl: payload.textureUrl };
+  }
+  if (payload.error) {
+    return { textureUrl: null, error: payload.error };
+  }
+  if (response.status === 502 || response.status === 503) {
+    return {
+      textureUrl: null,
+      error: "Paint API is offline. Keep npm run dev running (Vite + API).",
+    };
   }
   return {
-    textureUrl: payload.textureUrl ?? null,
-    error: payload.error,
+    textureUrl: null,
+    error: `Livery API ${response.status}`,
   };
 }
