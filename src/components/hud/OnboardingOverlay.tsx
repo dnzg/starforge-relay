@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   loadCaptainProfile,
   saveCaptainProfile,
@@ -8,17 +8,23 @@ import {
 interface OnboardingOverlayProps {
   suggestedName: string;
   onComplete: (name: string, gender: CaptainGender) => void;
+  onReady?: () => void;
 }
 
 export function OnboardingOverlay({
   suggestedName,
   onComplete,
+  onReady,
 }: OnboardingOverlayProps) {
   const existing = useMemo(() => loadCaptainProfile(), []);
   const [step, setStep] = useState<"identity" | "briefing">("identity");
   const [visible, setVisible] = useState(!existing);
   const [name, setName] = useState(existing?.name ?? (suggestedName === "Captain" ? "" : suggestedName));
   const [gender, setGender] = useState<CaptainGender>(existing?.gender ?? "they");
+
+  useEffect(() => {
+    if (!visible) onReady?.();
+  }, [onReady, visible]);
 
   const finish = useCallback(() => {
     const profile = saveCaptainProfile({
@@ -88,7 +94,7 @@ export function OnboardingOverlay({
               Clear the reach
             </h2>
             <p className="onboarding-lead stagger-item">
-              Hostiles will fire. Talk to the ship. When the gate opens, fly through.
+              Destroy 3 hostile ships to unlock the jump gate. Follow the JUMP marker and fly through the glowing ring.
             </p>
             <ul className="onboarding-list stagger-item">
               <li>
@@ -101,7 +107,10 @@ export function OnboardingOverlay({
                 <strong>Fire</strong> — Hold Space, click the sector, or FIRE
               </li>
               <li>
-                <strong>Talk</strong> — Type or speak to the ship AI
+                <strong>Jump</strong> — After 3 kills, fly into the JUMP gate
+              </li>
+              <li>
+                <strong>Talk</strong> — Voice examples: “scan the sector”, “status”, “jump”
               </li>
             </ul>
             <button type="button" className="onboarding-cta stagger-item" onClick={finish}>

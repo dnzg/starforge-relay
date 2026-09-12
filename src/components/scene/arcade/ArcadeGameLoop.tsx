@@ -10,6 +10,7 @@ import {
 import { PlayerShipMesh } from "./PlayerShipMesh";
 import { CombatMeshes } from "./CombatMeshes";
 import { JumpGateMesh } from "./JumpGateMesh";
+import { WorldObjectiveLabels } from "./WorldObjectiveLabels";
 import {
   applyArcadeFlight,
   CAM_BACK,
@@ -571,6 +572,7 @@ export function ArcadeGameLoop({
       <CombatMeshes enemiesRef={enemiesRef} projectilesRef={projectilesRef} />
       <ExplosionBursts explosionsRef={explosionsRef} />
       <JumpGateMesh gateRef={jumpGateRef} />
+      <WorldObjectiveLabels jumpGateRef={jumpGateRef} />
     </>
   );
 }

@@ -1,5 +1,6 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useGame } from "../../providers/GameProvider";
+import { arcadeUiRef } from "../../lib/combat/arcadeUiRef";
 import { interpretVoiceTranscript } from "../../lib/voice";
 import { parseCommand } from "../../lib/game/commandResolver";
 import { pronounsFor } from "../../lib/game/captainProfile";
@@ -39,8 +40,34 @@ export function HUD({
   } = useGame();
   const disabled = loading || !run || run.status !== "active" || garageOpen;
   const [hintDismissed, setHintDismissed] = useState(false);
+  const [briefingOpen, setBriefingOpen] = useState(true);
   const [logOpen, setLogOpen] = useState(false);
-  const showHintStrip = !hintDismissed && sectorKills === 0;
+  const dismissHints = useCallback(() => setHintDismissed(true), []);
+  const showHintStrip = !hintDismissed && !briefingOpen;
+  const [gateOpen, setGateOpen] = useState(false);
+
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      setGateOpen(arcadeUiRef.jumpGateUnlocked);
+    }, 150);
+    return () => window.clearInterval(interval);
+  }, []);
+
+  const handleTouchMove = useCallback(
+    (x: number, y: number) => {
+      if (x !== 0 || y !== 0) dismissHints();
+      onTouchMove(x, y);
+    },
+    [dismissHints, onTouchMove],
+  );
+
+  const handleTouchFire = useCallback(
+    (active: boolean) => {
+      if (active) dismissHints();
+      onTouchFire(active);
+    },
+    [dismissHints, onTouchFire],
+  );
 
   const talkContext = useMemo(
     () => ({
@@ -87,9 +114,9 @@ export function HUD({
       <OnboardingOverlay
         suggestedName={captain?.name ?? suggestedName}
         onComplete={completeCaptainSetup}
+        onReady={() => setBriefingOpen(false)}
       />
       <HyperspaceOverlay />
-      <ObjectiveMarker />
 
       <header className="hud-chrome hud-chrome-top">
         <div className="hud-brand">
@@ -100,20 +127,19 @@ export function HUD({
       </header>
 
       <div className="hud-objective-stack">
+        <ObjectiveMarker />
         <SectorProgress />
-        <ControlHintStrip
-          visible={showHintStrip}
-          onDismiss={() => setHintDismissed(true)}
-        />
       </div>
+
+      <ControlHintStrip visible={showHintStrip} onDismiss={dismissHints} />
 
       <TranscriptPanel />
       <TranscriptDrawer open={logOpen} />
 
       <TouchControls
         disabled={disabled}
-        onMove={onTouchMove}
-        onFire={onTouchFire}
+        onMove={handleTouchMove}
+        onFire={handleTouchFire}
       />
 
       <footer className="hud-chrome hud-chrome-bottom">
@@ -125,6 +151,7 @@ export function HUD({
         <CommandInput
           onSubmit={(text) => handleTalk(text, "text")}
           disabled={disabled}
+          jumpReady={gateOpen}
         />
         <div className="hud-footer-actions">
           <button
