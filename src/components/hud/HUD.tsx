@@ -46,6 +46,7 @@ export function HUD() {
 
       <div className="hud-grid">
         <StatusPanel />
+        <div className="hud-center-spacer" aria-hidden="true" />
         <TranscriptPanel />
       </div>
 
