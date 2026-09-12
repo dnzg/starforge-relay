@@ -262,7 +262,7 @@ export function GameProvider({
           toldRef.current.gate = true;
           void client.appendShipMessage(
             "combat",
-            "Jump gate is live north of us. Fly the ring when you are ready.",
+            "Jump gate unlocked. Fly into the glowing JUMP ring — or say jump if you have fuel.",
             "text",
           );
         }
