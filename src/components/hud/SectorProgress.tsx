@@ -20,7 +20,7 @@ export function SectorProgress() {
       {gateUnlocked ? (
         <>
           <span className="sector-progress-gate">
-            Jump gate unlocked — fly into the glowing JUMP ring
+            Jump gate unlocked — fly into the JUMP ring
           </span>
           <span className="sector-progress-tip">
             Or say “jump” if you have fuel
@@ -29,7 +29,7 @@ export function SectorProgress() {
       ) : (
         <>
           <span>
-            Hostiles {cleared} / {KILLS_FOR_JUMP} — destroy ships to unlock the jump gate
+            Hostiles {cleared} / {KILLS_FOR_JUMP} to unlock jump gate
           </span>
           <span className="sector-progress-tip">
             Voice examples: “scan the sector” · “status” · “jump”

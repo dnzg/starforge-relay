@@ -339,7 +339,7 @@ h3 {
 .control-hint-strip {
   position: absolute;
   left: 0.75rem;
-  bottom: max(5.7rem, calc(var(--space-safe-bottom) + 5.3rem));
+  bottom: max(10.2rem, calc(var(--space-safe-bottom) + 9.8rem));
   z-index: 5;
   display: flex;
   align-items: center;
@@ -348,11 +348,12 @@ h3 {
   min-height: 40px;
   padding: 0.4rem 0.45rem 0.4rem 0.75rem;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--color-background) 70%, transparent);
+  background: color-mix(in srgb, #111114 88%, transparent);
   backdrop-filter: blur(12px);
-  box-shadow: var(--shadow-border);
-  font-size: 0.72rem;
-  color: var(--color-muted);
+  box-shadow: var(--shadow-border), 0 0 0 1px #ffffff24;
+  font-size: 0.74rem;
+  font-weight: 500;
+  color: #f0eff3;
   pointer-events: auto;
   transition-property: opacity, transform, filter;
   transition-duration: 180ms;
@@ -1232,8 +1233,12 @@ h3 {
   }
 
   .sector-progress {
-    white-space: normal;
+    white-space: nowrap;
     max-width: min(22rem, calc(100vw - 1.5rem));
+  }
+
+  .sector-progress-tip {
+    display: none;
   }
 
   .control-hint-strip span {

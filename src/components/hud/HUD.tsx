@@ -1,5 +1,6 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useGame } from "../../providers/GameProvider";
+import { arcadeUiRef } from "../../lib/combat/arcadeUiRef";
 import { interpretVoiceTranscript } from "../../lib/voice";
 import { parseCommand } from "../../lib/game/commandResolver";
 import { pronounsFor } from "../../lib/game/captainProfile";
@@ -33,16 +34,24 @@ export function HUD({
     sendCommand,
     appendShipMessage,
     sectorKills,
-    jumpGateUnlocked,
     captain,
     suggestedName,
     completeCaptainSetup,
   } = useGame();
   const disabled = loading || !run || run.status !== "active" || garageOpen;
   const [hintDismissed, setHintDismissed] = useState(false);
+  const [briefingOpen, setBriefingOpen] = useState(true);
   const [logOpen, setLogOpen] = useState(false);
   const dismissHints = useCallback(() => setHintDismissed(true), []);
-  const showHintStrip = !hintDismissed;
+  const showHintStrip = !hintDismissed && !briefingOpen;
+  const [gateOpen, setGateOpen] = useState(false);
+
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      setGateOpen(arcadeUiRef.jumpGateUnlocked);
+    }, 150);
+    return () => window.clearInterval(interval);
+  }, []);
 
   const handleTouchMove = useCallback(
     (x: number, y: number) => {
@@ -105,6 +114,7 @@ export function HUD({
       <OnboardingOverlay
         suggestedName={captain?.name ?? suggestedName}
         onComplete={completeCaptainSetup}
+        onReady={() => setBriefingOpen(false)}
       />
       <HyperspaceOverlay />
 
@@ -141,7 +151,7 @@ export function HUD({
         <CommandInput
           onSubmit={(text) => handleTalk(text, "text")}
           disabled={disabled}
-          jumpReady={jumpGateUnlocked}
+          jumpReady={gateOpen}
         />
         <div className="hud-footer-actions">
           <button

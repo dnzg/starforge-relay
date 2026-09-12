@@ -51,6 +51,7 @@ export function ControlHintStrip({ visible, onDismiss }: ControlHintStripProps) 
   return (
     <div
       className={`control-hint-strip ${visible ? "" : "is-hidden"}`}
+      role="status"
       aria-hidden={!visible}
     >
       <span>

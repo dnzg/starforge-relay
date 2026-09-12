@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   loadCaptainProfile,
   saveCaptainProfile,
@@ -8,17 +8,23 @@ import {
 interface OnboardingOverlayProps {
   suggestedName: string;
   onComplete: (name: string, gender: CaptainGender) => void;
+  onReady?: () => void;
 }
 
 export function OnboardingOverlay({
   suggestedName,
   onComplete,
+  onReady,
 }: OnboardingOverlayProps) {
   const existing = useMemo(() => loadCaptainProfile(), []);
   const [step, setStep] = useState<"identity" | "briefing">("identity");
   const [visible, setVisible] = useState(!existing);
   const [name, setName] = useState(existing?.name ?? (suggestedName === "Captain" ? "" : suggestedName));
   const [gender, setGender] = useState<CaptainGender>(existing?.gender ?? "they");
+
+  useEffect(() => {
+    if (!visible) onReady?.();
+  }, [onReady, visible]);
 
   const finish = useCallback(() => {
     const profile = saveCaptainProfile({
