@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useGame } from "../../providers/GameProvider";
 import {
   loadCaptainProfile,
@@ -6,9 +6,11 @@ import {
   type CaptainGender,
 } from "../../lib/game/captainProfile";
 import {
+  autoPromptMicOnce,
   disableMic,
   ensureMicStream,
   hasLiveMic,
+  promptMicFromUserGesture,
 } from "../../lib/voice/micPermission";
 import { LeaderboardPanel } from "./LeaderboardPanel";
 
@@ -33,6 +35,59 @@ export function StartMenuOverlay() {
   const [micEnabled, setMicEnabled] = useState(hasLiveMic);
   const [micError, setMicError] = useState<string | null>(null);
   const [playBusy, setPlayBusy] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const gesturePromptDoneRef = useRef(false);
+
+  const applyMicResult = useCallback((granted: boolean, denied: boolean) => {
+    if (granted) {
+      setMicEnabled(true);
+      setMicError(null);
+      return;
+    }
+    if (denied) {
+      setMicEnabled(false);
+      setMicError("Microphone blocked. You can still play — enable voice in Settings.");
+    }
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    setMicBusy(true);
+    void autoPromptMicOnce().then((result) => {
+      if (cancelled) return;
+      applyMicResult(result === "granted", result === "denied");
+      setMicBusy(false);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [applyMicResult]);
+
+  useEffect(() => {
+    const menu = menuRef.current;
+    if (!menu) return;
+
+    const onPointerDown = (event: PointerEvent) => {
+      if (gesturePromptDoneRef.current || hasLiveMic()) return;
+      const target = event.target;
+      if (
+        target instanceof Element &&
+        target.closest("input, textarea, button, select, label, fieldset")
+      ) {
+        return;
+      }
+      gesturePromptDoneRef.current = true;
+      menu.removeEventListener("pointerdown", onPointerDown);
+      setMicBusy(true);
+      void promptMicFromUserGesture().then((result) => {
+        applyMicResult(result === "granted", result === "denied");
+        setMicBusy(false);
+      });
+    };
+
+    menu.addEventListener("pointerdown", onPointerDown);
+    return () => menu.removeEventListener("pointerdown", onPointerDown);
+  }, [applyMicResult]);
 
   const toggleMic = useCallback(async () => {
     if (micEnabled) {
@@ -70,7 +125,12 @@ export function StartMenuOverlay() {
   }, [beginRun, gender, name, suggestedName, updateCaptainProfile]);
 
   return (
-    <div className="start-menu-overlay" role="dialog" aria-labelledby="start-menu-title">
+    <div
+      ref={menuRef}
+      className="start-menu-overlay"
+      role="dialog"
+      aria-labelledby="start-menu-title"
+    >
       <div className="start-menu-card">
         <header className="start-menu-header stagger-item">
           <img
@@ -118,6 +178,30 @@ export function StartMenuOverlay() {
             </label>
           ))}
         </fieldset>
+
+        <section className="start-menu-comms stagger-item" aria-label="Bridge comms">
+          <div className="start-menu-comms-copy">
+            <h2>Bridge comms</h2>
+            <p>
+              {micEnabled
+                ? "Microphone ready for voice commands."
+                : "Allow the microphone once for voice commands. Text commands always work."}
+            </p>
+          </div>
+          {micError ? <p className="onboarding-error">{micError}</p> : null}
+          {!micEnabled ? (
+            <button
+              type="button"
+              className="start-menu-secondary start-menu-mic-toggle"
+              onClick={() => void toggleMic()}
+              disabled={micBusy}
+            >
+              {micBusy ? "Requesting microphone…" : "Enable microphone"}
+            </button>
+          ) : (
+            <p className="start-menu-comms-ok">Microphone enabled</p>
+          )}
+        </section>
 
         <button
           type="button"

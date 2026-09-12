@@ -1,5 +1,8 @@
 let sharedStream: MediaStream | null = null;
 let pending: Promise<MediaStream> | null = null;
+let sessionAutoPromptDone = false;
+
+export type MicPromptResult = "granted" | "denied" | "skipped";
 
 function isLive(stream: MediaStream | null): stream is MediaStream {
   return Boolean(
@@ -48,4 +51,26 @@ export async function ensureMicStream(): Promise<MediaStream> {
     });
 
   return pending;
+}
+
+export async function autoPromptMicOnce(): Promise<MicPromptResult> {
+  if (isLive(sharedStream)) return "skipped";
+  if (sessionAutoPromptDone) return "skipped";
+  sessionAutoPromptDone = true;
+  try {
+    await ensureMicStream();
+    return "granted";
+  } catch {
+    return "denied";
+  }
+}
+
+export async function promptMicFromUserGesture(): Promise<MicPromptResult> {
+  if (isLive(sharedStream)) return "skipped";
+  try {
+    await ensureMicStream();
+    return "granted";
+  } catch {
+    return "denied";
+  }
 }
