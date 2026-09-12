@@ -48,7 +48,7 @@ export function HUD({ onTouchMove, onTouchFire }: HUDProps) {
         <StatusPanel compact />
       </header>
 
-      <div className="hud-center-spacer" />
+      <div className="hud-center-spacer" aria-hidden="true" />
 
       <aside className="hud-side-transcript">
         <TranscriptPanel />
