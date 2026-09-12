@@ -16,6 +16,7 @@ export type {
   VoiceInterpretResponse,
   VoiceStatusResponse,
 } from "./voiceApi";
+export { ensureMicStream, hasLiveMic } from "./micPermission";
 export { useVoiceRuntime } from "./useVoiceRuntime";
 export type { VoiceRuntimeState } from "./useVoiceRuntime";
 export { useShipAiSpeaker } from "./useShipAiSpeaker";

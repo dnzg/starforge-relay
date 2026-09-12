@@ -4,6 +4,7 @@ import {
   saveCaptainProfile,
   type CaptainGender,
 } from "../../lib/game/captainProfile";
+import { ensureMicStream } from "../../lib/voice/micPermission";
 
 interface OnboardingOverlayProps {
   suggestedName: string;
@@ -17,10 +18,14 @@ export function OnboardingOverlay({
   onReady,
 }: OnboardingOverlayProps) {
   const existing = useMemo(() => loadCaptainProfile(), []);
-  const [step, setStep] = useState<"identity" | "briefing">("identity");
-  const [visible, setVisible] = useState(!existing);
+  const [step, setStep] = useState<"identity" | "briefing" | "comms">(
+    existing ? "comms" : "identity",
+  );
+  const [visible, setVisible] = useState(true);
   const [name, setName] = useState(existing?.name ?? (suggestedName === "Captain" ? "" : suggestedName));
   const [gender, setGender] = useState<CaptainGender>(existing?.gender ?? "they");
+  const [micBusy, setMicBusy] = useState(false);
+  const [micError, setMicError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!visible) onReady?.();
@@ -34,6 +39,19 @@ export function OnboardingOverlay({
     setVisible(false);
     onComplete(profile.name, profile.gender);
   }, [gender, name, onComplete, suggestedName]);
+
+  const openComms = useCallback(async () => {
+    setMicBusy(true);
+    setMicError(null);
+    try {
+      await ensureMicStream();
+      finish();
+    } catch {
+      setMicError("Microphone blocked. Enable it for voice, or play with text.");
+    } finally {
+      setMicBusy(false);
+    }
+  }, [finish]);
 
   if (!visible) return null;
 
@@ -87,7 +105,7 @@ export function OnboardingOverlay({
               Continue
             </button>
           </>
-        ) : (
+        ) : step === "briefing" ? (
           <>
             <p className="eyebrow stagger-item">Sector Combat Briefing</p>
             <h2 id="onboarding-title" className="stagger-item">
@@ -116,8 +134,40 @@ export function OnboardingOverlay({
                 <strong>Talk</strong> — Voice examples: “scan the sector”, “status”, “jump”
               </li>
             </ul>
-            <button type="button" className="onboarding-cta stagger-item" onClick={finish}>
+            <button
+              type="button"
+              className="onboarding-cta stagger-item"
+              onClick={() => setStep("comms")}
+            >
               Engage
+            </button>
+          </>
+        ) : (
+          <>
+            <p className="eyebrow stagger-item">Bridge comms</p>
+            <h2 id="onboarding-title" className="stagger-item">
+              Open the channel
+            </h2>
+            <p className="onboarding-lead stagger-item">
+              Allow the microphone once before launch. The ship keeps the channel open so
+              it will not ask again this session.
+            </p>
+            {micError ? <p className="onboarding-error stagger-item">{micError}</p> : null}
+            <button
+              type="button"
+              className="onboarding-cta stagger-item"
+              onClick={() => void openComms()}
+              disabled={micBusy}
+            >
+              {micBusy ? "Requesting microphone…" : "Enable microphone"}
+            </button>
+            <button
+              type="button"
+              className="onboarding-skip stagger-item"
+              onClick={finish}
+              disabled={micBusy}
+            >
+              Play without voice
             </button>
           </>
         )}

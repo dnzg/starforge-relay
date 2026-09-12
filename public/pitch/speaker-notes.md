@@ -91,22 +91,15 @@
 
 ---
 
-## Slide 5 — Demo checklist (~20s)
+## Slide 5 — Try it (~15s)
 
-**Смысл:** скажи жюри, на что смотреть — потом молча играй.
+**На слайде для людей:** live + QR, без инструкций спикеру.
 
 **Скажи:**
-> I’ll play in Telegram. Watch for four beats:
-> 1. Fly, kill three hostiles — JUMP unlocks  
-> 2. Gate jump — new sector texture, generated or cached  
-> 3. Ship AI line — avatar / voice  
-> 4. Super attack when mana is full  
+> It’s live in Telegram — scan the QR or open the bot. Happy to demo and take questions.
 
-> Opening the Mini App now.
+**Себе (не на слайде):** fly → 3 kills → JUMP → new texture → voice/super if time.
 
-**Переход:** `F` выйти из слайдов → Telegram → Play.
-
----
 
 ## Live demo — чеклист для тебя
 

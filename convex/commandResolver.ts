@@ -65,8 +65,18 @@ export function sectorNameFromSeed(seed: number): string {
   return `${prefix} ${suffix} ${num}`;
 }
 
+const STT_ALIASES: Record<string, CommandVerb> = {
+  john: "jump",
+  jon: "jump",
+  jam: "jump",
+  junk: "jump",
+  там: "jump",
+  джамп: "jump",
+  джам: "jump",
+};
+
 export function parseCommand(raw: string): CommandVerb | null {
-  const verb = raw.trim().toLowerCase().split(/\s+/)[0];
+  const verb = raw.trim().toLowerCase().split(/\s+/)[0]?.replace(/[.,!?]/g, "");
   const allowed: CommandVerb[] = [
     "scan",
     "hail",
@@ -75,7 +85,8 @@ export function parseCommand(raw: string): CommandVerb | null {
     "status",
     "jump",
   ];
-  return allowed.includes(verb as CommandVerb) ? (verb as CommandVerb) : null;
+  if (allowed.includes(verb as CommandVerb)) return verb as CommandVerb;
+  return verb ? (STT_ALIASES[verb] ?? null) : null;
 }
 
 export function resolveCommand(

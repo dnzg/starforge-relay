@@ -908,7 +908,8 @@ h3 {
 
 .command-form button:disabled,
 .chip:disabled,
-.mic-button:disabled {
+.mic-button:disabled,
+.onboarding-cta:disabled {
   opacity: 0.45;
   cursor: not-allowed;
 }
@@ -1361,6 +1362,31 @@ h3 {
   min-height: 44px;
 }
 
+.onboarding-error {
+  margin: 0 0 0.75rem;
+  color: var(--color-accent-hot);
+  font-size: 0.82rem;
+}
+
+.onboarding-skip {
+  width: 100%;
+  min-height: 44px;
+  margin-top: 0.45rem;
+  border: 0;
+  border-radius: var(--radius);
+  background: var(--color-surface-strong);
+  color: var(--color-text);
+  font: inherit;
+  font-weight: 500;
+  box-shadow: var(--shadow-border);
+  cursor: pointer;
+}
+
+.onboarding-skip:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 .gameover-overlay {
   position: absolute;
   inset: 0;
@@ -1739,7 +1765,8 @@ h3 {
   }
 
   .radar {
-    bottom: max(12.8rem, calc(var(--space-safe-bottom) + 12.2rem));
+    top: calc(max(0.7rem, var(--space-safe-top)) + 2.75rem + 0.55rem);
+    bottom: auto;
   }
 
   .touch-controls {
@@ -1894,7 +1921,8 @@ h3 {
   }
 
   .radar {
-    bottom: max(12.8rem, calc(var(--space-safe-bottom) + 12.2rem));
+    top: calc(max(0.7rem, var(--space-safe-top)) + 2.75rem + 0.55rem);
+    bottom: auto;
   }
 }
 

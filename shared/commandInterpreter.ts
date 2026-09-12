@@ -33,11 +33,52 @@ const SYNONYMS: Record<string, CommandVerb> = {
   sensor: "scan",
 };
 
+const STT_ALIASES: Record<string, CommandVerb> = {
+  john: "jump",
+  jon: "jump",
+  johnny: "jump",
+  jam: "jump",
+  jamp: "jump",
+  jumb: "jump",
+  junk: "jump",
+  dump: "jump",
+  champ: "jump",
+  chump: "jump",
+  june: "jump",
+  jung: "jump",
+  junt: "jump",
+  yump: "jump",
+  jum: "jump",
+  там: "jump",
+  джамп: "jump",
+  джам: "jump",
+  джамб: "jump",
+  scam: "scan",
+  скан: "scan",
+  hale: "hail",
+  heil: "hail",
+  flea: "flee",
+  statues: "status",
+  statue: "status",
+  engaging: "engage",
+  engaged: "engage",
+};
+
+function tokenizeCommand(text: string): string[] {
+  return text
+    .trim()
+    .toLowerCase()
+    .split(/\s+/)
+    .map((token) => token.replace(/^[.,!?¿¡;:"]+|[.,!?¿¡;:"]+$/g, ""))
+    .filter(Boolean);
+}
+
 export function extractCommandVerb(text: string): CommandVerb | null {
   const normalized = text.trim().toLowerCase();
   if (!normalized) return null;
 
-  const first = normalized.split(/\s+/)[0]?.replace(/[.,!?]/g, "");
+  const tokens = tokenizeCommand(normalized);
+  const first = tokens[0];
   if (VERBS.includes(first as CommandVerb)) {
     return first as CommandVerb;
   }
@@ -52,7 +93,24 @@ export function extractCommandVerb(text: string): CommandVerb | null {
     }
   }
 
+  if (tokens.length <= 3) {
+    for (const token of tokens) {
+      if (STT_ALIASES[token]) return STT_ALIASES[token];
+    }
+  }
+
   return null;
+}
+
+export function resolveVoiceTranscript(transcripts: string[]): string {
+  for (const raw of transcripts) {
+    const trimmed = raw.trim();
+    if (!trimmed) continue;
+    const verb = extractCommandVerb(trimmed);
+    if (!verb) continue;
+    return tokenizeCommand(trimmed).length <= 2 ? verb : trimmed;
+  }
+  return (transcripts[0] ?? "").trim();
 }
 
 export interface ShipAiContext {
