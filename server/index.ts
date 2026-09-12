@@ -1,9 +1,12 @@
-import "dotenv/config";
+import { config as loadEnv } from "dotenv";
 import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { serve } from "@hono/node-server";
 import { createApp } from "./app.js";
 import { loadServerEnv } from "./env.js";
+
+loadEnv({ path: ".env" });
+loadEnv({ path: ".env.local", override: true });
 
 const dev = process.argv.includes("--dev");
 const env = loadServerEnv({ dev, portOverride: dev ? 43124 : undefined });

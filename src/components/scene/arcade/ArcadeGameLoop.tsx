@@ -10,9 +10,22 @@ import {
 import { PlayerShipMesh } from "./PlayerShipMesh";
 import { CombatMeshes } from "./CombatMeshes";
 import { JumpGateMesh } from "./JumpGateMesh";
+import { WorldObjectiveLabels } from "./WorldObjectiveLabels";
+import {
+  applyArcadeFlight,
+  CAM_BACK,
+  CAM_HEIGHT,
+} from "./arcadeFlight";
+import {
+  createExplosionPool,
+  ExplosionBursts,
+  spawnExplosion,
+} from "./ExplosionBursts";
+import { lerpAngle, noseDirection } from "./shipGeometry";
 import {
   enemyContactRadius,
   enemyHitRadius,
+  MAX_ENEMIES,
   MAX_PROJECTILES,
   SECTOR_BOUNDS,
   spawnEnemy,
@@ -23,6 +36,7 @@ import {
   dist2,
   type CombatCallbacks,
   type Enemy,
+  type ExplosionSlot,
   type JumpGateState,
   type PlayerState,
   type Projectile,
@@ -30,7 +44,7 @@ import {
 
 const PLAYER_SPEED = 9;
 const BOOST_MULT = 1.75;
-const FIRE_COOLDOWN = 0.18;
+const FIRE_COOLDOWN = 0.16;
 const PROJECTILE_SPEED = 28;
 const PROJECTILE_TTL = 2.2;
 const ENEMY_CONTACT_DAMAGE = 12;
@@ -39,6 +53,12 @@ const HOSTILE_SHOT_RADIUS = 0.55;
 const ENEMY_SPAWN_INTERVAL = 2.4;
 const MAX_DELTA = 0.05;
 const JUMP_GATE_RADIUS = 2.2;
+const BASE_FOV = 60;
+const BOOST_FOV = 68;
+const WARP_FOV = 72;
+
+const _nose = new THREE.Vector3();
+const _shake = new THREE.Vector3();
 
 function clampDelta(delta: number): number {
   return Math.min(delta, MAX_DELTA);
@@ -54,6 +74,7 @@ function resetGameState(
   sectorKeyRef: RefObject<string>,
   sectorKillsRef: RefObject<number>,
   jumpGateRef: RefObject<JumpGateState>,
+  explosionsRef: RefObject<ExplosionSlot[]>,
 ) {
   if (sectorKeyRef.current === sectorKey) return;
   sectorKeyRef.current = sectorKey;
@@ -66,6 +87,9 @@ function resetGameState(
     active: false,
     position: { x: 0, z: -18 },
   };
+  for (const slot of explosionsRef.current) {
+    slot.active = false;
+  }
   resetArcadeUiForSector();
 
   const initialCount = Math.min(5, 2 + Math.floor(threatLevel / 2));
@@ -81,10 +105,7 @@ function resetGameState(
   }
 }
 
-function updateProjectiles(
-  projectiles: Projectile[],
-  dt: number,
-): void {
+function updateProjectiles(projectiles: Projectile[], dt: number): void {
   let write = 0;
   for (let i = 0; i < projectiles.length; i++) {
     const projectile = projectiles[i]!;
@@ -104,8 +125,10 @@ function resolveCollisions(
   callbacks: CombatCallbacks,
   sectorKillsRef: RefObject<number>,
   jumpGateRef: RefObject<JumpGateState>,
+  explosions: ExplosionSlot[],
+  shakeRef: RefObject<number>,
 ): void {
-  const surviving: Enemy[] = [];
+  let surviving = 0;
   for (let ei = 0; ei < enemies.length; ei++) {
     const enemy = enemies[ei]!;
     let hp = enemy.hp;
@@ -114,7 +137,7 @@ function resolveCollisions(
     for (let pi = 0; pi < projectiles.length; pi++) {
       const projectile = projectiles[pi]!;
       if (
-        projectile.team === "player" &&
+        projectile.owner === "player" &&
         dist2(projectile.position, enemy.position) < enemyHitRadius(enemy)
       ) {
         hp -= 1;
@@ -125,6 +148,8 @@ function resolveCollisions(
     projectiles.length = pw;
 
     if (hp <= 0) {
+      spawnExplosion(explosions, enemy.position.x, enemy.position.z);
+      shakeRef.current = Math.max(shakeRef.current, 0.55);
       callbacks.onEnemyKilled();
       sectorKillsRef.current += 1;
       if (
@@ -135,11 +160,10 @@ function resolveCollisions(
       }
     } else {
       enemy.hp = hp;
-      surviving.push(enemy);
+      enemies[surviving++] = enemy;
     }
   }
-  enemies.length = 0;
-  enemies.push(...surviving);
+  enemies.length = surviving;
 }
 
 function updateObjectiveTarget(
@@ -187,6 +211,7 @@ function updateObjectiveTarget(
 
 interface ArcadeGameLoopProps {
   enabled: boolean;
+  hyperspaceActive?: boolean;
   sectorKey: string;
   threatLevel: number;
   getInput: () => ArcadeInputState;
@@ -195,6 +220,7 @@ interface ArcadeGameLoopProps {
 
 export function ArcadeGameLoop({
   enabled,
+  hyperspaceActive = false,
   sectorKey,
   threatLevel,
   getInput,
@@ -204,6 +230,7 @@ export function ArcadeGameLoop({
   const playerRef = useRef<PlayerState>(createInitialPlayer());
   const enemiesRef = useRef<Enemy[]>([]);
   const projectilesRef = useRef<Projectile[]>([]);
+  const explosionsRef = useRef<ExplosionSlot[]>(createExplosionPool());
   const nextIdRef = useRef(1);
   const fireCooldownRef = useRef(0);
   const spawnTimerRef = useRef(0);
@@ -216,8 +243,18 @@ export function ArcadeGameLoop({
   });
   const cameraTarget = useRef(new THREE.Vector3());
   const lookTarget = useRef(new THREE.Vector3());
-  const camOffset = useRef(new THREE.Vector3());
+  const camYawRef = useRef(0);
+  const shakeRef = useRef(0);
+  const turnRateRef = useRef(0);
   const jumpGateTriggeredRef = useRef(false);
+
+  useEffect(() => {
+    if (camera instanceof THREE.PerspectiveCamera) {
+      camera.clearViewOffset();
+      camera.far = 800;
+      camera.updateProjectionMatrix();
+    }
+  }, [camera]);
 
   useEffect(() => {
     jumpGateTriggeredRef.current = false;
@@ -231,161 +268,212 @@ export function ArcadeGameLoop({
       sectorKeyRef,
       sectorKillsRef,
       jumpGateRef,
+      explosionsRef,
     );
   }, [sectorKey, threatLevel]);
 
   useFrame((_, delta) => {
-    if (!enabled) return;
-
     const dt = clampDelta(delta);
     const player = playerRef.current;
-    const input = getInput();
-    const speed = PLAYER_SPEED * (input.boost ? BOOST_MULT : 1) * dt;
+    const persp =
+      camera instanceof THREE.PerspectiveCamera ? camera : null;
 
-    if (input.moveX !== 0 || input.moveY !== 0) {
-      player.position.x += input.moveX * speed;
-      player.position.z += input.moveY * speed;
-      player.rotation = Math.atan2(input.moveX, input.moveY);
-    }
+    if (enabled) {
+      const input = getInput();
+      const boost = input.boost ? BOOST_MULT : 1;
+      const speed = PLAYER_SPEED * boost * dt;
+      const previousYaw = player.rotation;
 
-    player.position.x = THREE.MathUtils.clamp(
-      player.position.x,
-      -SECTOR_BOUNDS,
-      SECTOR_BOUNDS,
-    );
-    player.position.z = THREE.MathUtils.clamp(
-      player.position.z,
-      -SECTOR_BOUNDS,
-      SECTOR_BOUNDS,
-    );
+      applyArcadeFlight(player, input, speed, dt);
+      player.position.x = THREE.MathUtils.clamp(
+        player.position.x,
+        -SECTOR_BOUNDS,
+        SECTOR_BOUNDS,
+      );
+      player.position.z = THREE.MathUtils.clamp(
+        player.position.z,
+        -SECTOR_BOUNDS,
+        SECTOR_BOUNDS,
+      );
 
-    fireCooldownRef.current = Math.max(0, fireCooldownRef.current - dt);
-    if (input.firePressed && fireCooldownRef.current <= 0) {
-      fireCooldownRef.current = FIRE_COOLDOWN;
-      const dirX = Math.sin(player.rotation);
-      const dirZ = Math.cos(player.rotation);
-      if (projectilesRef.current.length < MAX_PROJECTILES) {
+      turnRateRef.current = THREE.MathUtils.lerp(
+        turnRateRef.current,
+        player.rotation - previousYaw,
+        0.35,
+      );
+
+      fireCooldownRef.current = Math.max(0, fireCooldownRef.current - dt);
+      if (
+        input.fire &&
+        fireCooldownRef.current <= 0 &&
+        projectilesRef.current.length < MAX_PROJECTILES
+      ) {
+        fireCooldownRef.current = FIRE_COOLDOWN;
+        noseDirection(player.rotation, _nose);
         projectilesRef.current.push({
           id: nextIdRef.current++,
           position: {
-            x: player.position.x + dirX * 0.8,
-            z: player.position.z + dirZ * 0.8,
+            x: player.position.x + _nose.x * 0.95,
+            z: player.position.z + _nose.z * 0.95,
           },
-          velocity: { x: dirX * PROJECTILE_SPEED, z: dirZ * PROJECTILE_SPEED },
+          velocity: {
+            x: _nose.x * PROJECTILE_SPEED,
+            z: _nose.z * PROJECTILE_SPEED,
+          },
           ttl: PROJECTILE_TTL,
-          team: "player",
+          owner: "player",
         });
       }
-    }
 
-    updateProjectiles(projectilesRef.current, dt);
+      updateProjectiles(projectilesRef.current, dt);
 
-    spawnTimerRef.current += dt;
-    const maxEnemies = 6 + Math.floor(threatLevel / 2);
-    if (
-      spawnTimerRef.current >= ENEMY_SPAWN_INTERVAL &&
-      enemiesRef.current.length < maxEnemies
-    ) {
-      spawnTimerRef.current = 0;
-      enemiesRef.current.push(
-        spawnEnemy(
-          nextIdRef.current++,
-          player,
-          threatLevel,
-          enemiesRef.current,
-        ),
+      spawnTimerRef.current += dt;
+      const maxEnemies = Math.min(
+        MAX_ENEMIES,
+        6 + Math.floor(threatLevel / 2),
+      );
+      if (
+        spawnTimerRef.current >= ENEMY_SPAWN_INTERVAL &&
+        enemiesRef.current.length < maxEnemies
+      ) {
+        spawnTimerRef.current = 0;
+        enemiesRef.current.push(
+          spawnEnemy(
+            nextIdRef.current++,
+            player,
+            threatLevel,
+            enemiesRef.current,
+          ),
+        );
+      }
+
+      updateEnemies(
+        enemiesRef.current,
+        player,
+        dt,
+        clock.elapsedTime,
+        projectilesRef.current,
+        nextIdRef,
+      );
+
+      resolveCollisions(
+        enemiesRef.current,
+        projectilesRef.current,
+        callbacks,
+        sectorKillsRef,
+        jumpGateRef,
+        explosionsRef.current,
+        shakeRef,
+      );
+
+      if (!invulnRef.current) {
+        let hit = false;
+        for (let i = 0; i < enemiesRef.current.length; i++) {
+          const enemy = enemiesRef.current[i]!;
+          if (dist2(player.position, enemy.position) < enemyContactRadius(enemy)) {
+            hit = true;
+            const dx = enemy.position.x - player.position.x;
+            const dz = enemy.position.z - player.position.z;
+            const dist = Math.max(0.001, Math.hypot(dx, dz));
+            enemy.position.x += (dx / dist) * 1.4;
+            enemy.position.z += (dz / dist) * 1.4;
+            callbacks.onPlayerHit(ENEMY_CONTACT_DAMAGE);
+            break;
+          }
+        }
+
+        if (!hit) {
+          let pw = 0;
+          for (let i = 0; i < projectilesRef.current.length; i++) {
+            const bolt = projectilesRef.current[i]!;
+            if (
+              bolt.owner === "enemy" &&
+              dist2(player.position, bolt.position) < HOSTILE_SHOT_RADIUS
+            ) {
+              hit = true;
+              callbacks.onPlayerHit(HOSTILE_SHOT_DAMAGE);
+              continue;
+            }
+            projectilesRef.current[pw++] = bolt;
+          }
+          projectilesRef.current.length = pw;
+        }
+
+        if (hit) {
+          player.invulnTimer = 1.1;
+          invulnRef.current = true;
+          shakeRef.current = Math.max(shakeRef.current, 0.7);
+        }
+      }
+
+      const gate = jumpGateRef.current;
+      if (
+        gate.active &&
+        !jumpGateTriggeredRef.current &&
+        dist2(player.position, gate.position) < JUMP_GATE_RADIUS
+      ) {
+        jumpGateTriggeredRef.current = true;
+        shakeRef.current = Math.max(shakeRef.current, 0.9);
+        callbacks.onJumpGateEnter();
+      }
+
+      updateObjectiveTarget(
+        player,
+        enemiesRef.current,
+        gate,
+        sectorKillsRef.current,
       );
     }
 
-    updateEnemies(
-      enemiesRef.current,
-      player,
-      dt,
-      clock.elapsedTime,
-      projectilesRef.current,
-      nextIdRef,
-    );
-
-    resolveCollisions(
-      enemiesRef.current,
-      projectilesRef.current,
-      callbacks,
-      sectorKillsRef,
-      jumpGateRef,
-    );
-
-    if (!invulnRef.current) {
-      let hit = false;
-      for (let i = 0; i < enemiesRef.current.length; i++) {
-        const enemy = enemiesRef.current[i]!;
-        if (dist2(player.position, enemy.position) < enemyContactRadius(enemy)) {
-          callbacks.onPlayerHit(ENEMY_CONTACT_DAMAGE);
-          hit = true;
-          break;
-        }
-      }
-      if (!hit) {
-        let pw = 0;
-        const shots = projectilesRef.current;
-        for (let i = 0; i < shots.length; i++) {
-          const projectile = shots[i]!;
-          if (
-            !hit &&
-            projectile.team === "hostile" &&
-            dist2(player.position, projectile.position) < HOSTILE_SHOT_RADIUS
-          ) {
-            callbacks.onPlayerHit(HOSTILE_SHOT_DAMAGE);
-            hit = true;
-            continue;
-          }
-          shots[pw++] = projectile;
-        }
-        shots.length = pw;
-      }
-      if (hit) {
-        player.invulnTimer = 1.1;
-        invulnRef.current = true;
-      }
-    }
-
-    const gate = jumpGateRef.current;
-    if (
-      gate.active &&
-      !jumpGateTriggeredRef.current &&
-      dist2(player.position, gate.position) < JUMP_GATE_RADIUS
-    ) {
-      jumpGateTriggeredRef.current = true;
-      callbacks.onJumpGateEnter();
-    }
-
-    updateObjectiveTarget(
-      player,
-      enemiesRef.current,
-      gate,
-      sectorKillsRef.current,
-    );
-
-    camOffset.current.set(
-      -Math.sin(player.rotation) * 5.5,
-      3.2,
-      -Math.cos(player.rotation) * 5.5,
+    camYawRef.current = lerpAngle(
+      camYawRef.current,
+      player.rotation,
+      1 - Math.exp(-3.1 * dt),
     );
     cameraTarget.current.set(
-      player.position.x + camOffset.current.x,
-      camOffset.current.y,
-      player.position.z + camOffset.current.z,
+      player.position.x + Math.sin(camYawRef.current) * CAM_BACK,
+      CAM_HEIGHT + player.pitch * 0.85,
+      player.position.z + Math.cos(camYawRef.current) * CAM_BACK,
     );
-    const lerpFactor = 1 - Math.pow(0.001, dt);
+    shakeRef.current = Math.max(0, shakeRef.current - dt * 2.4);
+    if (shakeRef.current > 0) {
+      const s = shakeRef.current;
+      _shake.set(
+        Math.sin(player.invulnTimer * 38) * s * 0.28,
+        Math.cos(player.invulnTimer * 27) * s * 0.12,
+        Math.sin(player.invulnTimer * 21) * s * 0.22,
+      );
+      cameraTarget.current.add(_shake);
+    }
+
+    const lerpFactor = 1 - Math.exp(-5.2 * dt);
     camera.position.lerp(cameraTarget.current, lerpFactor);
-    lookTarget.current.set(player.position.x, 0.4, player.position.z);
+    lookTarget.current.set(
+      player.position.x - Math.sin(player.rotation) * 1.6,
+      0.45 - player.pitch * 0.55,
+      player.position.z - Math.cos(player.rotation) * 1.6,
+    );
     camera.lookAt(lookTarget.current);
+    camera.rotateZ(-turnRateRef.current * 1.8);
+
+    if (persp) {
+      const targetFov = hyperspaceActive
+        ? WARP_FOV
+        : enabled && getInput().boost
+          ? BOOST_FOV
+          : BASE_FOV;
+      persp.fov += (targetFov - persp.fov) * (1 - Math.exp(-5 * dt));
+      persp.updateProjectionMatrix();
+    }
   });
 
   return (
     <>
       <PlayerShipMesh playerRef={playerRef} invulnRef={invulnRef} />
       <CombatMeshes enemiesRef={enemiesRef} projectilesRef={projectilesRef} />
+      <ExplosionBursts explosionsRef={explosionsRef} />
       <JumpGateMesh gateRef={jumpGateRef} />
+      <WorldObjectiveLabels jumpGateRef={jumpGateRef} />
     </>
   );
 }

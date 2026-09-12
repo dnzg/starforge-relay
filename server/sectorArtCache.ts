@@ -5,7 +5,10 @@ import {
   access,
 } from "node:fs/promises";
 import { join } from "node:path";
-import type { FalSectorArtPayload } from "../shared/falSectorArtServer.js";
+import type {
+  FalSectorArtPayload,
+  SectorArtKind,
+} from "../shared/falSectorArtServer.js";
 
 export interface SectorArtCacheEntry {
   seed: number;
@@ -26,19 +29,24 @@ export interface SectorArtCacheOptions {
   publicBasePath?: string;
 }
 
-function seedFileName(seed: number): string {
-  return `${seed}.json`;
+function cacheKey(seed: number, kind: SectorArtKind = "planet"): string {
+  return kind === "planet" ? `${seed}` : `${kind}-${seed}`;
 }
 
-function imageFileName(seed: number): string {
-  return `${seed}.jpg`;
+function seedFileName(seed: number, kind: SectorArtKind = "planet"): string {
+  return `${cacheKey(seed, kind)}.json`;
+}
+
+function imageFileName(seed: number, kind: SectorArtKind = "planet"): string {
+  return `${cacheKey(seed, kind)}.jpg`;
 }
 
 function localTextureUrl(
   seed: number,
   publicBasePath: string,
+  kind: SectorArtKind = "planet",
 ): string {
-  return `${publicBasePath}/${imageFileName(seed)}`;
+  return `${publicBasePath}/${imageFileName(seed, kind)}`;
 }
 
 export class SectorArtCache {
@@ -50,39 +58,43 @@ export class SectorArtCache {
     this.publicBasePath = options.publicBasePath ?? "/api/sector-art/files";
   }
 
-  private jsonPath(seed: number): string {
-    return join(this.cacheDir, seedFileName(seed));
+  private jsonPath(seed: number, kind: SectorArtKind = "planet"): string {
+    return join(this.cacheDir, seedFileName(seed, kind));
   }
 
-  imagePath(seed: number): string {
-    return join(this.cacheDir, imageFileName(seed));
+  imagePath(seed: number, kind: SectorArtKind = "planet"): string {
+    return join(this.cacheDir, imageFileName(seed, kind));
   }
 
   async ensureDir(): Promise<void> {
     await mkdir(this.cacheDir, { recursive: true });
   }
 
-  async hasImage(seed: number): Promise<boolean> {
+  async hasImage(seed: number, kind: SectorArtKind = "planet"): Promise<boolean> {
     try {
-      await access(this.imagePath(seed));
+      await access(this.imagePath(seed, kind));
       return true;
     } catch {
       return false;
     }
   }
 
-  async read(seed: number): Promise<FalSectorArtPayload | null> {
+  async read(
+    seed: number,
+    kind: SectorArtKind = "planet",
+  ): Promise<FalSectorArtPayload | null> {
     try {
-      const raw = await readFile(this.jsonPath(seed), "utf8");
+      const raw = await readFile(this.jsonPath(seed, kind), "utf8");
       const entry = JSON.parse(raw) as SectorArtCacheEntry;
-      const hasImage = await this.hasImage(seed);
+      const hasImage = await this.hasImage(seed, kind);
       if (!hasImage || !entry.textureUrl) {
         return null;
       }
 
       return {
         seed: entry.seed,
-        textureUrl: localTextureUrl(seed, this.publicBasePath),
+        kind,
+        textureUrl: localTextureUrl(seed, this.publicBasePath, kind),
         placeholder: entry.placeholder,
         prompt: entry.prompt,
         error: entry.error,
@@ -101,6 +113,7 @@ export class SectorArtCache {
     seed: number,
     payload: Omit<FalSectorArtPayload, "cached">,
     remoteUrl: string,
+    kind: SectorArtKind = "planet",
   ): Promise<FalSectorArtPayload> {
     await this.ensureDir();
 
@@ -112,11 +125,11 @@ export class SectorArtCache {
     }
 
     const imageBuffer = Buffer.from(await imageResponse.arrayBuffer());
-    await writeFile(this.imagePath(seed), imageBuffer);
+    await writeFile(this.imagePath(seed, kind), imageBuffer);
 
     const entry: SectorArtCacheEntry = {
       seed,
-      textureUrl: localTextureUrl(seed, this.publicBasePath),
+      textureUrl: localTextureUrl(seed, this.publicBasePath, kind),
       prompt: payload.prompt,
       placeholder: false,
       metadata: {
@@ -127,10 +140,11 @@ export class SectorArtCache {
       },
     };
 
-    await writeFile(this.jsonPath(seed), JSON.stringify(entry, null, 2));
+    await writeFile(this.jsonPath(seed, kind), JSON.stringify(entry, null, 2));
 
     return {
       ...payload,
+      kind,
       textureUrl: entry.textureUrl,
       placeholder: false,
       cached: false,
@@ -140,6 +154,7 @@ export class SectorArtCache {
   async writePlaceholder(
     seed: number,
     payload: Omit<FalSectorArtPayload, "cached">,
+    kind: SectorArtKind = "planet",
   ): Promise<FalSectorArtPayload> {
     await this.ensureDir();
 
@@ -156,8 +171,8 @@ export class SectorArtCache {
       },
     };
 
-    await writeFile(this.jsonPath(seed), JSON.stringify(entry, null, 2));
+    await writeFile(this.jsonPath(seed, kind), JSON.stringify(entry, null, 2));
 
-    return { ...payload, cached: true };
+    return { ...payload, kind, cached: true };
   }
 }

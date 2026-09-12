@@ -216,13 +216,11 @@ function createDroneMesh(assets: SharedEnemyAssets): THREE.Group {
   return group;
 }
 
-function createProjectileMesh(
-  assets: SharedEnemyAssets,
-): THREE.Mesh {
+function createProjectileMesh(assets: SharedEnemyAssets): THREE.Mesh {
   const mesh = new THREE.Mesh(assets.bolt, assets.playerBolt);
   mesh.rotation.x = Math.PI / 2;
   mesh.visible = false;
-  mesh.userData.team = "player";
+  mesh.userData.owner = "player";
   return mesh;
 }
 
@@ -326,10 +324,10 @@ export function CombatMeshes({
         const projectile = projectiles[i]!;
         mesh.visible = true;
         mesh.position.set(projectile.position.x, 0, projectile.position.z);
-        if (mesh.userData.team !== projectile.team) {
+        if (mesh.userData.owner !== projectile.owner) {
           mesh.material =
-            projectile.team === "hostile" ? assets.hostileBolt : assets.playerBolt;
-          mesh.userData.team = projectile.team;
+            projectile.owner === "enemy" ? assets.hostileBolt : assets.playerBolt;
+          mesh.userData.owner = projectile.owner;
         }
       } else {
         mesh.visible = false;

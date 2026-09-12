@@ -28,14 +28,25 @@ export async function fetchVoiceStatus(): Promise<VoiceStatusResponse> {
   }
 }
 
+export interface ShipTalkContext {
+  captainName?: string;
+  pronouns?: string;
+  sectorName?: string;
+  hull?: number;
+  shields?: number;
+  threatLevel?: number;
+  sectorKills?: number;
+}
+
 export async function interpretVoiceTranscript(
   text: string,
+  context?: ShipTalkContext,
 ): Promise<VoiceInterpretResponse> {
   try {
     const response = await fetch("/api/voice/interpret", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text }),
+      body: JSON.stringify({ text, context }),
     });
     if (!response.ok) {
       return {

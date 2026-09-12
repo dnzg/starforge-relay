@@ -1,5 +1,8 @@
+export type SectorArtKind = "planet" | "sky";
+
 export interface SectorArtResult {
   seed: number;
+  kind?: SectorArtKind;
   textureUrl: string | null;
   placeholder: boolean;
   prompt: string;

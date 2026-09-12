@@ -16,6 +16,17 @@ const INITIAL: ArcadeInputState = {
   firePressed: false,
 };
 
+function isTypingTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  const tag = target.tagName;
+  if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return true;
+  return target.isContentEditable;
+}
+
+function isCanvasTarget(target: EventTarget | null): boolean {
+  return target instanceof Element && Boolean(target.closest("canvas"));
+}
+
 export function useArcadeInput(enabled: boolean) {
   const keysRef = useRef({
     up: false,
@@ -71,6 +82,7 @@ export function useArcadeInput(enabled: boolean) {
     if (!enabled) return;
 
     const onKeyDown = (event: KeyboardEvent) => {
+      if (isTypingTarget(event.target)) return;
       switch (event.code) {
         case "ArrowUp":
         case "KeyW":
@@ -137,26 +149,44 @@ export function useArcadeInput(enabled: boolean) {
       recompute();
     };
 
-    const onMouseDown = () => {
+    const onMouseDown = (event: MouseEvent) => {
+      if (event.button !== 0) {
+        if (event.button === 2) {
+          event.preventDefault();
+        }
+        return;
+      }
+      if (!isCanvasTarget(event.target)) return;
       keysRef.current.fire = true;
       recompute();
     };
 
-    const onMouseUp = () => {
+    const onMouseUp = (event: MouseEvent) => {
+      if (event.button !== 0) return;
       keysRef.current.fire = false;
       recompute();
+    };
+
+    const onContextMenu = (event: MouseEvent) => {
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      if (target.closest(".viewport") || target.closest("canvas")) {
+        event.preventDefault();
+      }
     };
 
     window.addEventListener("keydown", onKeyDown);
     window.addEventListener("keyup", onKeyUp);
     window.addEventListener("mousedown", onMouseDown);
     window.addEventListener("mouseup", onMouseUp);
+    window.addEventListener("contextmenu", onContextMenu);
 
     return () => {
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("keyup", onKeyUp);
       window.removeEventListener("mousedown", onMouseDown);
       window.removeEventListener("mouseup", onMouseUp);
+      window.removeEventListener("contextmenu", onContextMenu);
     };
   }, [enabled, recompute]);
 

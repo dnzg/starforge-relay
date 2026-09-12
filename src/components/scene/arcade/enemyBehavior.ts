@@ -186,6 +186,10 @@ export function spawnEnemy(
       player.position.x - position.x,
       player.position.z - position.z,
     ),
+    rotation: Math.atan2(
+      player.position.x - position.x,
+      player.position.z - position.z,
+    ),
     strafePhase: Math.random() * Math.PI * 2,
     orbitDir: pickOrbitDir(kind, existing),
     preferredRange: archetype.preferredRange + rangeJitter,
@@ -241,7 +245,7 @@ function tryEnemyShot(
       z: nz * archetype.shotSpeed,
     },
     ttl: 2.1,
-    team: "hostile",
+    owner: "enemy",
   });
   enemy.fireCooldown = archetype.fireInterval + Math.random() * 0.28;
 }
@@ -310,6 +314,7 @@ export function updateEnemies(
     enemy.position.z = posScratch.z;
     enemy.heading =
       enemy.kind === "interceptor" ? Math.atan2(vx, vz) : Math.atan2(dx, dz);
+    enemy.rotation = enemy.heading;
 
     tryEnemyShot(enemy, nx, nz, dist, dt, projectiles, nextId);
   }
