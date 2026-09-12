@@ -1,9 +1,17 @@
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
 import { PlayerShipMesh } from "../scene/arcade/PlayerShipMesh";
 import { useShipLoadout } from "../../hooks/useShipLoadout";
+import { useTelegramWebApp } from "../../hooks/useTelegramWebApp";
 import { generateShipLivery } from "../../lib/assets/shipLivery";
+import {
+  createStarsInvoice,
+  fetchStarsEntitlements,
+  mockGrantStars,
+  openStarsInvoice,
+  type StarsEntitlements,
+} from "../../lib/payments/stars";
 import type {
   EngineStyle,
   NoseStyle,
@@ -64,17 +72,118 @@ function OptionRow<T extends string>({
 export function GarageOverlay({ onClose }: GarageOverlayProps) {
   const compact = useCompactGarage();
   const { loadout, update } = useShipLoadout();
+  const { isTelegram, webApp, user } = useTelegramWebApp();
   const [prompt, setPrompt] = useState(loadout.prompt);
   const [busy, setBusy] = useState(false);
+  const [buyBusy, setBuyBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [entitlements, setEntitlements] = useState<StarsEntitlements | null>(
+    null,
+  );
+  const [starsMock, setStarsMock] = useState(false);
+  const [starsConfigured, setStarsConfigured] = useState(false);
+
+  const starsContext = {
+    initData: webApp?.initData,
+    telegramUserId: user ? String(user.id) : undefined,
+  };
+
+  const refreshEntitlements = useCallback(async () => {
+    const next = await fetchStarsEntitlements(starsContext);
+    if (next) setEntitlements(next);
+  }, [starsContext.initData, starsContext.telegramUserId]);
+
+  useEffect(() => {
+    void fetch("/api/health")
+      .then((response) => response.json())
+      .then((payload: { starsMock?: boolean; starsConfigured?: boolean }) => {
+        setStarsMock(Boolean(payload.starsMock));
+        setStarsConfigured(Boolean(payload.starsConfigured));
+      })
+      .catch(() => undefined);
+  }, []);
+
+  useEffect(() => {
+    void refreshEntitlements();
+  }, [refreshEntitlements]);
+
+  const requiresLiveryCredit =
+    isTelegram && starsConfigured && !starsMock;
+  const liveryCredits = entitlements?.livery_reroll ?? 0;
+  const canPaint = !requiresLiveryCredit || liveryCredits > 0;
+
+  const buyLiveryReroll = async () => {
+    setBuyBusy(true);
+    setError(null);
+    try {
+      const invoice = await createStarsInvoice("livery_reroll", starsContext);
+      if ("error" in invoice) {
+        setError(invoice.error);
+        return;
+      }
+
+      if ("mock" in invoice && invoice.mock) {
+        const granted = await mockGrantStars("livery_reroll", starsContext);
+        if (granted) {
+          setEntitlements(granted);
+        } else {
+          setError("Mock grant failed.");
+        }
+        return;
+      }
+
+      if (!webApp || !("invoiceLink" in invoice)) {
+        setError("Open in Telegram to pay with Stars.");
+        return;
+      }
+
+      const status = await openStarsInvoice(webApp, invoice.invoiceLink);
+      if (status === "paid") {
+        await refreshEntitlements();
+        webApp.HapticFeedback?.impactOccurred("medium");
+      } else if (status === "failed") {
+        setError("Stars payment failed.");
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Stars purchase failed");
+    } finally {
+      setBuyBusy(false);
+    }
+  };
+
+  const mockGrantLivery = async () => {
+    setBuyBusy(true);
+    setError(null);
+    try {
+      const granted = await mockGrantStars("livery_reroll", {
+        telegramUserId: starsContext.telegramUserId ?? "browser-demo",
+      });
+      if (granted) {
+        setEntitlements(granted);
+      } else {
+        setError("Mock grant failed.");
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Mock grant failed");
+    } finally {
+      setBuyBusy(false);
+    }
+  };
 
   const paint = async () => {
+    if (!canPaint) {
+      setError("Buy a livery reroll with Stars first.");
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
-      const result = await generateShipLivery(prompt);
+      const result = await generateShipLivery(prompt, starsContext);
       if (result.textureUrl) {
         update({ prompt, textureUrl: result.textureUrl });
+        if (requiresLiveryCredit) {
+          await refreshEntitlements();
+        }
       } else {
         setError(result.error ?? "Fal could not paint this hull.");
       }
@@ -128,6 +237,15 @@ export function GarageOverlay({ onClose }: GarageOverlayProps) {
         <h2 id="garage-title">Your ship</h2>
         <p className="garage-lead">Orbit the hull. Change the silhouette. Ask Fal to paint it.</p>
 
+        {requiresLiveryCredit ? (
+          <p className="garage-stars-credits">
+            Livery credits: <strong>{liveryCredits}</strong>
+            {entitlements?.demo_boost ? (
+              <span className="garage-stars-badge">Demo boost</span>
+            ) : null}
+          </p>
+        ) : null}
+
         <div className="garage-options">
           <OptionRow<NoseStyle>
             label="Nose"
@@ -172,7 +290,32 @@ export function GarageOverlay({ onClose }: GarageOverlayProps) {
         </label>
         {error ? <p className="garage-error">{error}</p> : null}
         <div className="garage-actions">
-          <button type="button" onClick={() => void paint()} disabled={busy}>
+          {requiresLiveryCredit ? (
+            <button
+              type="button"
+              className="garage-stars-buy"
+              onClick={() => void buyLiveryReroll()}
+              disabled={buyBusy}
+            >
+              {buyBusy ? "Opening Stars…" : "Buy with Stars (35★)"}
+            </button>
+          ) : null}
+          {starsMock && !isTelegram ? (
+            <button
+              type="button"
+              className="garage-stars-mock"
+              onClick={() => void mockGrantLivery()}
+              disabled={buyBusy}
+            >
+              Grant mock livery credit
+            </button>
+          ) : null}
+          <button
+            type="button"
+            className="garage-paint"
+            onClick={() => void paint()}
+            disabled={busy || !canPaint}
+          >
             {busy ? "Painting…" : "Paint with AI"}
           </button>
           <button type="button" className="garage-close" onClick={onClose}>

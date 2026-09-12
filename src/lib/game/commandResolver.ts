@@ -1,3 +1,4 @@
+import { extractCommandVerb } from "../../../shared/commandInterpreter";
 import type { CommandResult, CommandVerb, RunState } from "./types";
 
 const SECTOR_PREFIXES = [
@@ -42,16 +43,7 @@ export function sectorNameFromSeed(seed: number): string {
 }
 
 export function parseCommand(raw: string): CommandVerb | null {
-  const verb = raw.trim().toLowerCase().split(/\s+/)[0];
-  const allowed: CommandVerb[] = [
-    "scan",
-    "hail",
-    "engage",
-    "flee",
-    "status",
-    "jump",
-  ];
-  return allowed.includes(verb as CommandVerb) ? (verb as CommandVerb) : null;
+  return extractCommandVerb(raw);
 }
 
 export function createInitialRun(id: string, seed?: number): RunState {

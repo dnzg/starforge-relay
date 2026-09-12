@@ -1,6 +1,14 @@
 const memoryCache = new Map<string, string>();
 
-export async function generateShipLivery(prompt: string): Promise<{
+interface ShipLiveryContext {
+  initData?: string;
+  telegramUserId?: string;
+}
+
+export async function generateShipLivery(
+  prompt: string,
+  context: ShipLiveryContext = {},
+): Promise<{
   textureUrl: string | null;
   error?: string;
 }> {
@@ -13,10 +21,14 @@ export async function generateShipLivery(prompt: string): Promise<{
     return { textureUrl: cached };
   }
 
+  const body: Record<string, string> = { prompt: trimmed };
+  if (context.initData) body.initData = context.initData;
+  if (context.telegramUserId) body.telegramUserId = context.telegramUserId;
+
   const response = await fetch("/api/ship-livery", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ prompt: trimmed }),
+    body: JSON.stringify(body),
   });
   const payload = (await response.json().catch(() => ({}))) as {
     textureUrl?: string | null;

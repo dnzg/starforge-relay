@@ -1,8 +1,9 @@
 # Starforge Relay — speaker notes (3–5 min)
 
 **Формат:** 5 слайдов → сразу live Telegram Mini App.  
-**Слайды:** `pitch/demo-slides.html` · `← →` / Space · `F` fullscreen  
+**Слайды:** `public/pitch/demo-slides.html` → live `/pitch/demo-slides.html` · `← →` / Space · `F` fullscreen
 **Live:** https://starforge-relay.onrender.com  
+**Bot / QR:** https://t.me/Starforge_Relay_Bot  
 **Repo:** https://github.com/dnzg/starforge-relay  
 
 Говори жюри **на английском** (ниже — готовые фразы). Заметки слева — для тебя.
@@ -41,22 +42,20 @@
 
 ---
 
-## Slide 2 — The gap (~40s)
+## Slide 2 — Why this · since 2020 (~45s)
 
-**Смысл:** почему рынок кривой → мы посередине.
+**Смысл:** личный крючок + проблема рынка. Скрин palm0 — твоя игра 2020, до AI.
 
 **Скажи:**
-> Most Telegram games are either static tappers with fixed art — or AI chat toys that don’t feel like games.
+> In 2020 I was already building toward this — a game about explorable worlds. That screenshot is mine, from before generative AI.
 
-> We do three things together:
-> - **Play** — real arcade loop: ship, hostiles, jump gate, super attack  
-> - **Worlds** — Fal textures generated once, cached forever per seed  
-> - **Voice** — ship AI with avatar + TTS as a bonus layer, not the only control  
+> I always wanted to keep going. What was missing wasn’t the idea of a game — it was a content pipeline that could stay fresh without killing the economics.
 
-**Мост к слайду 3:**
-> Here’s the loop players feel in the first minute.
+> Telegram has distribution. It still doesn’t have infinite game worlds that feel like games: tappers die after day one, AI chats aren’t skill games, and naive AI-every-session burns money.
 
----
+> Starforge Relay is the continuation: arcade loop first, AI as the universe factory — generate once per seed, cache forever, play.
+
+**Жест:** укажи на скрин 2020 → потом на решение на слайде 3.
 
 ## Slide 3 — Product loop (~40s)
 
@@ -92,23 +91,22 @@
 
 ---
 
-## Slide 5 — Demo checklist (~20s)
+## Slide 5 — Try it (~15s)
 
-**Смысл:** скажи жюри, на что смотреть — потом молча играй.
+**На слайде для людей:** live + QR, без инструкций спикеру.
 
 **Скажи:**
-> I’ll play in Telegram. Watch for four beats:
+> It’s live in Telegram — scan the QR or open the bot. Watch for these beats:
 > 1. Fly, kill three hostiles — JUMP unlocks  
 > 2. Gate jump — new sector texture, generated or cached  
 > 3. Ship AI line — avatar / voice  
 > 4. Super attack when mana is full  
 > 5. HUD badge **Convex live** + leaderboard syncing your score  
 
-> Opening the Mini App now.
+> Happy to demo and take questions.
 
-**Переход:** `F` выйти из слайдов → Telegram → Play.
+**Себе (не на слайде):** fly → 3 kills → JUMP → new texture → voice/super if time.
 
----
 
 ## Live demo — чеклист для тебя
 

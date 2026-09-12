@@ -1024,7 +1024,8 @@ h3 {
 
 .command-form button:disabled,
 .chip:disabled,
-.mic-button:disabled {
+.mic-button:disabled,
+.onboarding-cta:disabled {
   opacity: 0.45;
   cursor: not-allowed;
 }
@@ -1477,6 +1478,31 @@ h3 {
   min-height: 44px;
 }
 
+.onboarding-error {
+  margin: 0 0 0.75rem;
+  color: var(--color-accent-hot);
+  font-size: 0.82rem;
+}
+
+.onboarding-skip {
+  width: 100%;
+  min-height: 44px;
+  margin-top: 0.45rem;
+  border: 0;
+  border-radius: var(--radius);
+  background: var(--color-surface-strong);
+  color: var(--color-text);
+  font: inherit;
+  font-weight: 500;
+  box-shadow: var(--shadow-border);
+  cursor: pointer;
+}
+
+.onboarding-skip:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 .gameover-overlay {
   position: absolute;
   inset: 0;
@@ -1702,7 +1728,39 @@ h3 {
   cursor: pointer;
 }
 
-.garage-actions button:first-child {
+.garage-stars-credits {
+  margin: 0 0 0.85rem;
+  font-size: 0.82rem;
+  color: var(--color-muted);
+}
+
+.garage-stars-credits strong {
+  color: var(--color-text);
+}
+
+.garage-stars-badge {
+  margin-left: 0.45rem;
+  padding: 0.12rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #ffe9a8;
+  background: rgba(255, 196, 64, 0.16);
+}
+
+.garage-stars-buy {
+  color: #1a1200;
+  background: linear-gradient(160deg, #ffd76a, #ffb800);
+}
+
+.garage-stars-mock {
+  color: var(--color-text);
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px dashed rgba(255, 255, 255, 0.22);
+}
+
+.garage-paint {
   color: var(--color-on-accent);
   background: linear-gradient(160deg, #e93c56, #ba1737);
 }
@@ -1823,7 +1881,8 @@ h3 {
   }
 
   .radar {
-    bottom: max(12.8rem, calc(var(--space-safe-bottom) + 12.2rem));
+    top: calc(max(0.7rem, var(--space-safe-top)) + 2.75rem + 0.55rem);
+    bottom: auto;
   }
 
   .touch-controls {
@@ -1978,7 +2037,8 @@ h3 {
   }
 
   .radar {
-    bottom: max(12.8rem, calc(var(--space-safe-bottom) + 12.2rem));
+    top: calc(max(0.7rem, var(--space-safe-top)) + 2.75rem + 0.55rem);
+    bottom: auto;
   }
 }
 

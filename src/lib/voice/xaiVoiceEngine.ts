@@ -1,4 +1,6 @@
+import { resolveVoiceTranscript } from "../../../shared/commandInterpreter";
 import type { VoiceEngine, VoiceRecognitionResult } from "./commandBus";
+import { ensureMicStream } from "./micPermission";
 
 const XAI_REALTIME_WS_URL =
   "wss://api.x.ai/v1/realtime?model=grok-voice-latest";
@@ -55,7 +57,6 @@ export function createXaiVoiceEngine(wsUrl = XAI_REALTIME_WS_URL): VoiceEngine {
       void audioContext.close();
       audioContext = null;
     }
-    mediaStream?.getTracks().forEach((track) => track.stop());
     mediaStream = null;
     if (ws && ws.readyState <= WebSocket.OPEN) {
       ws.close();
@@ -113,7 +114,7 @@ export function createXaiVoiceEngine(wsUrl = XAI_REALTIME_WS_URL): VoiceEngine {
               const transcript = extractTranscript(payload);
               if (transcript) {
                 deliveredFinal = true;
-                emitResult(transcript, true);
+                emitResult(resolveVoiceTranscript([transcript]), true);
                 cleanup();
               }
             }
@@ -135,24 +136,21 @@ export function createXaiVoiceEngine(wsUrl = XAI_REALTIME_WS_URL): VoiceEngine {
             session: {
               voice: "ara",
               instructions:
-                "You are Starforge Relay ship AI. Transcribe bridge commands accurately: scan, hail, engage, flee, status, jump.",
+                "You are Starforge Relay ship AI. Transcribe in English only. Bridge commands must be spelled exactly: scan, hail, engage, flee, status, jump. If the captain says jump, write jump — never John, jam, or Russian words.",
               turn_detection: { type: "server_vad" },
-              input_audio_transcription: { model: "whisper-1" },
+              input_audio_transcription: { model: "whisper-1", language: "en" },
             },
           }),
         );
 
-        mediaStream = await navigator.mediaDevices.getUserMedia({
-          audio: {
-            echoCancellation: true,
-            noiseSuppression: true,
-          },
-        });
+        mediaStream = await ensureMicStream();
 
         audioContext = new AudioContext();
         const inputRate = audioContext.sampleRate;
         sourceNode = audioContext.createMediaStreamSource(mediaStream);
         processor = audioContext.createScriptProcessor(4096, 1, 1);
+        const silent = audioContext.createGain();
+        silent.gain.value = 0;
         processor.onaudioprocess = (audioEvent) => {
           if (!ws || ws.readyState !== WebSocket.OPEN) return;
           const input = audioEvent.inputBuffer.getChannelData(0);
@@ -167,7 +165,8 @@ export function createXaiVoiceEngine(wsUrl = XAI_REALTIME_WS_URL): VoiceEngine {
         };
 
         sourceNode.connect(processor);
-        processor.connect(audioContext.destination);
+        processor.connect(silent);
+        silent.connect(audioContext.destination);
 
         window.setTimeout(() => {
           if (!listening || deliveredFinal) return;

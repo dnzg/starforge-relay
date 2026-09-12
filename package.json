@@ -12,7 +12,8 @@
     "lint": "oxlint",
     "preview": "npm run build && concurrently -n api,web -c green,blue \"npm:dev:api\" \"vite preview --port 43123 --host\"",
     "convex:dev": "convex dev",
-    "worker:sector": "tsx worker/cli.ts"
+    "worker:sector": "tsx worker/cli.ts",
+    "telegram:set-webhook": "tsx scripts/telegram-set-webhook.ts"
   },
   "dependencies": {
     "@hono/node-server": "^1.19.5",

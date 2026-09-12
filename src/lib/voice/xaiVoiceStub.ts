@@ -1,4 +1,6 @@
+import { resolveVoiceTranscript } from "../../../shared/commandInterpreter";
 import type { VoiceEngine, VoiceRecognitionResult } from "./commandBus";
+import { ensureMicStream } from "./micPermission";
 
 /**
  * Stub for x.ai Voice integration.
@@ -57,14 +59,33 @@ export function createBrowserSpeechStub(): VoiceEngine {
     isSupported: true,
 
     async startListening() {
+      try {
+        await ensureMicStream();
+      } catch (error) {
+        errorListeners.forEach((cb) =>
+          cb(
+            error instanceof Error
+              ? error.message
+              : "Microphone permission is required for voice commands.",
+          ),
+        );
+        return;
+      }
+
       recognition = new SpeechRecognitionCtor();
       recognition.continuous = false;
       recognition.interimResults = true;
+      recognition.maxAlternatives = 5;
       recognition.lang = "en-US";
 
       recognition.onresult = (event: SpeechRecognitionEvent) => {
         const last = event.results[event.results.length - 1];
-        const transcript = last[0].transcript;
+        const alternatives = Array.from({ length: last.length }, (_, index) =>
+          last[index].transcript,
+        );
+        const transcript = last.isFinal
+          ? resolveVoiceTranscript(alternatives)
+          : last[0].transcript;
         resultListeners.forEach((cb) =>
           cb({
             transcript,

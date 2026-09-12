@@ -376,6 +376,93 @@
     }
 
 
+
+
+    .origin-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+      gap: 1rem;
+      margin-top: 1.35rem;
+      max-width: 54rem;
+      width: 100%;
+      align-items: stretch;
+    }
+    .origin-shot {
+      position: relative;
+      border-radius: var(--radius);
+      overflow: hidden;
+      border: 1px solid rgba(240,239,243,.12);
+      background: #0a0a0c;
+      min-height: 12rem;
+      aspect-ratio: 760 / 440;
+      box-shadow: 0 16px 40px rgba(0,0,0,.4);
+    }
+    .origin-shot img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      object-position: center;
+      display: block;
+      filter: saturate(0.92) contrast(1.05);
+    }
+    .origin-shot .cap {
+      position: absolute;
+      left: 0.6rem;
+      bottom: 0.55rem;
+      font-family: var(--font-heading);
+      font-size: 0.68rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: #fff;
+      background: rgba(0,0,0,.55);
+      border: 1px solid rgba(255,255,255,.12);
+      padding: 0.25rem 0.45rem;
+      border-radius: 999px;
+      backdrop-filter: blur(8px);
+    }
+    @media (max-width: 900px) {
+      .origin-row { grid-template-columns: 1fr; }
+    }
+
+    .qr-bot {
+      display: flex;
+      align-items: center;
+      gap: 0.85rem;
+      margin-top: 1.25rem;
+      max-width: max-content;
+      align-self: flex-start;
+    }
+    .qr-bot img {
+      width: 7.5rem;
+      height: 7.5rem;
+      border-radius: 0.65rem;
+      border: 1px solid rgba(240,239,243,.12);
+      background: #000;
+      flex: 0 0 auto;
+    }
+    .qr-bot .meta {
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+    }
+    .qr-bot .meta .label {
+      font-family: var(--font-heading);
+      font-size: 0.7rem;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--color-accent-hot);
+    }
+    .qr-bot .meta a {
+      color: var(--color-cyan);
+      font-family: var(--font-heading);
+      font-size: 0.95rem;
+      text-decoration: none;
+    }
+    .qr-bot .meta .hint {
+      color: var(--color-muted);
+      font-size: 0.88rem;
+    }
+
     .live-url {
       display: inline-flex;
       align-items: center;
@@ -445,14 +532,20 @@
     <!-- 2 Problem -->
     <section class="slide bleed-dark" data-i="1">
       <div class="slide-bg" style="background-image:url('assets/bg-combat.png')"></div>
-      <p class="eyebrow">The gap</p>
-      <h2>Telegram games are either static tappers — or AI chats that don’t feel like games.</h2>
-      <div class="panel">
-        <ul class="clean">
-          <li><span class="tag">Play</span><span>Real arcade loop: ship, hostiles, jump gate, super attack.</span></li>
-          <li><span class="tag">Worlds</span><span>AI textures for planets / skies — generated once, cached forever per seed.</span></li>
-          <li><span class="tag">Voice</span><span>Ship AI you can talk to — avatar + TTS, not a wall of menus.</span></li>
-        </ul>
+      <p class="eyebrow">Why this · since 2020</p>
+      <h2>I built toward infinite worlds before AI. Today the pipeline finally exists.</h2>
+      <div class="origin-row">
+        <div class="origin-shot">
+          <img src="assets/palm0-2020.jpg" alt="Palm game prototype from 2020" />
+          <span class="cap">My game · 2020 · pre-AI</span>
+        </div>
+        <div class="panel" style="margin-top:0">
+          <ul class="clean">
+            <li><span class="tag">Then</span><span>I shipped playable worlds by hand — and always wanted to keep going.</span></li>
+            <li><span class="tag">Gap</span><span>Telegram has distribution, but not infinite worlds that still feel like games.</span></li>
+            <li><span class="tag">Now</span><span>AI is the content pipeline: generate once per seed, cache forever, then arcade.</span></li>
+          </ul>
+        </div>
       </div>
       <p class="footer-note">Slide 2 / 5</p>
     </section>
@@ -519,39 +612,27 @@
       <p class="footer-note">Slide 4 / 5</p>
     </section>
 
-    <!-- 5 Demo checklist -->
+    <!-- 5 Try it -->
     <section class="slide center-copy" data-i="4">
       <div class="slide-bg" style="background-image:url('assets/bg-combat.png')"></div>
-      <p class="eyebrow">Live demo — Telegram Mini App</p>
-      <h2>I’ll play in Telegram. You look for these beats.</h2>
-      <ol class="demo-list">
-        <li>
-          <span class="n">1</span>
-          <div class="line">Fly + kill three hostiles — <span class="accent">JUMP</span> unlocks</div>
-        </li>
-        <li>
-          <span class="n">2</span>
-          <div class="line">
-            Gate jump → new sector texture
-            <span class="sub">Fal · Generated / Cached</span>
-          </div>
-        </li>
-        <li>
-          <span class="n">3</span>
-          <div class="line">Ship AI line + avatar / voice</div>
-        </li>
-        <li>
-          <span class="n">4</span>
-          <div class="line">Super attack when mana is full</div>
-        </li>
-      </ol>
-      <a class="live-url" href="https://starforge-relay.onrender.com" target="_blank" rel="noopener" style="margin-top:1.5rem">
+      <p class="eyebrow">Try it</p>
+      <h2>Starforge Relay is live in Telegram.</h2>
+      <p class="lead">AI-native arcade — fly, fight, jump into generated worlds.</p>
+      <div class="qr-bot" style="margin-top:1.6rem">
+        <img src="assets/qr-telegram-bot.png" alt="QR code for Starforge Relay Telegram bot" />
+        <div class="meta">
+          <span class="label">Telegram Mini App</span>
+          <a href="https://t.me/Starforge_Relay_Bot" target="_blank" rel="noopener">t.me/Starforge_Relay_Bot</a>
+          <span class="hint">Scan to play</span>
+        </div>
+      </div>
+      <a class="live-url" href="https://starforge-relay.onrender.com" target="_blank" rel="noopener" style="margin-top:1.1rem">
         <span class="dot" aria-hidden="true"></span>
         starforge-relay.onrender.com
       </a>
-      <p class="lead" style="margin-top:1rem">Open the Mini App in Telegram. No slides after this.</p>
-      <p class="footer-note">Slide 5 / 5 · go live</p>
+      <p class="footer-note">Slide 5 / 5</p>
     </section>
+
 
     <div class="pager" id="pager"></div>
   </div>
