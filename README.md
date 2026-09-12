@@ -96,8 +96,9 @@ See `.env.example`:
 | `CONVEX_DEPLOY_KEY` | CI / Render Convex deploy |
 | `XAI_API_KEY` | x.ai Voice token + ship AI interpret + TTS fallback (server only) |
 | `FAL_KEY` | Fal.ai planet textures, ship avatar, and TTS (server/worker only) |
-| `TELEGRAM_BOT_TOKEN` | Telegram bot + Mini App |
-| `VITE_APP_URL` | Public URL for Telegram menu button |
+| `TELEGRAM_BOT_TOKEN` | Telegram bot + Mini App + Stars webhook |
+| `VITE_APP_URL` | Public URL for Telegram menu button + webhook |
+| `STARS_MOCK` | `1` = mock Stars flow (auto in dev); `0` = force real invoice in dev |
 
 Never commit real keys.
 
@@ -127,7 +128,8 @@ This repo ships a **Node web service** (not static-only) so API keys stay server
 | `FAL_KEY` | No | Fal planet textures, ship avatar, and TTS |
 | `XAI_API_KEY` | No | x.ai voice token + ship AI interpret + TTS |
 | `VITE_APP_URL` | No | Public URL for Telegram Mini App menu |
-| `TELEGRAM_BOT_TOKEN` | No | Future bot webhooks |
+| `TELEGRAM_BOT_TOKEN` | No | Bot API + Stars webhook |
+| `STARS_MOCK` | No | Set `1` on Render to demo Stars UX without live checkout |
 | `PORT` | Auto | Render sets this automatically |
 
 The service serves the Vite build from `dist/` and exposes `/api/*` on the same origin.
@@ -164,6 +166,40 @@ Copy the `https://*.trycloudflare.com` URL into BotFather as the Mini App URL. V
 Browser fallback works for judges without Telegram — a banner explains preview mode.
 
 On launch, the app calls `Telegram.WebApp.disableVerticalSwipes()` (when supported) so swipe-down does not accidentally dismiss the Mini App during arcade play. Older Telegram clients without this API are unaffected.
+
+### Telegram Stars (XTR) — livery credits
+
+Digital goods only: Stars buy **taste/time** (livery rerolls), not combat damage.
+
+| SKU | Stars | Grant |
+|-----|-------|-------|
+| `livery_reroll` | 35 | One Fal hull paint credit |
+| `demo_boost` | 10 | Cosmetic bridge flair flag |
+
+**Flow**
+
+1. Hangar → **Buy with Stars** → `POST /api/stars/invoice` → Bot API `createInvoiceLink` (currency `XTR`, no `provider_token`)
+2. Mini App opens invoice via `Telegram.WebApp.openInvoice(link, callback)`
+3. Webhook `POST /api/telegram/webhook` answers `pre_checkout_query` and grants entitlements on `successful_payment`
+4. `GET /api/stars/entitlements` drives the Hangar credit counter
+
+**Set webhook (once per deploy URL)**
+
+```bash
+# Requires TELEGRAM_BOT_TOKEN + VITE_APP_URL in .env
+npm run telegram:set-webhook
+# → https://starforge-relay.onrender.com/api/telegram/webhook
+```
+
+**Testing**
+
+| Mode | How |
+|------|-----|
+| Browser demo | Dev enables `STARS_MOCK` automatically — Hangar shows **Grant mock livery credit** |
+| Render demo | Set `STARS_MOCK=1` in dashboard |
+| Real Stars | Set `STARS_MOCK=0`, configure webhook, buy 1★ live in Telegram; refund via Bot API `refundStarPayment` if needed |
+
+Telegram’s test environment often cannot acquire Stars — use mock mode for judges and a single live purchase for proof.
 
 ## Project structure
 
@@ -208,7 +244,7 @@ render.yaml       Render blueprint
 ### Stretch (if time remains)
 
 - [ ] Daytona worker generates sector JSON + queues Fal jobs on jump
-- [ ] Telegram Stars payments for fuel / repairs
+- [x] Telegram Stars payments for livery rerolls (Hangar MVP + mock mode)
 - [ ] Deeper combat loop and encounter events
 - [ ] Persistent captain profile across runs
 
@@ -224,6 +260,7 @@ render.yaml       Render blueprint
 | `npm run preview` | Build + API + Vite preview |
 | `npm run worker:sector` | Local sector JSON CLI |
 | `npm run convex:dev` | Start Convex dev sync |
+| `npm run telegram:set-webhook` | Point bot webhook at `{VITE_APP_URL}/api/telegram/webhook` |
 
 ## License
 

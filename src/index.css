@@ -1586,7 +1586,39 @@ h3 {
   cursor: pointer;
 }
 
-.garage-actions button:first-child {
+.garage-stars-credits {
+  margin: 0 0 0.85rem;
+  font-size: 0.82rem;
+  color: var(--color-muted);
+}
+
+.garage-stars-credits strong {
+  color: var(--color-text);
+}
+
+.garage-stars-badge {
+  margin-left: 0.45rem;
+  padding: 0.12rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #ffe9a8;
+  background: rgba(255, 196, 64, 0.16);
+}
+
+.garage-stars-buy {
+  color: #1a1200;
+  background: linear-gradient(160deg, #ffd76a, #ffb800);
+}
+
+.garage-stars-mock {
+  color: var(--color-text);
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px dashed rgba(255, 255, 255, 0.22);
+}
+
+.garage-paint {
   color: var(--color-on-accent);
   background: linear-gradient(160deg, #e93c56, #ba1737);
 }
