@@ -14,8 +14,8 @@ export const MAX_ENEMIES = 12;
 export const MAX_PROJECTILES = 24;
 
 const MIN_SPAWN_SEPARATION = 5.2;
-const SEPARATION_PADDING = 1.55;
-const SEPARATION_STRENGTH = 5.4;
+const SEPARATION_PADDING = 1.85;
+const SEPARATION_STRENGTH = 6.8;
 const MAX_SPEED_MULT = 1.4;
 const SPAWN_CANDIDATES = 14;
 const ENEMY_LIMIT = SECTOR_BOUNDS + 5;
@@ -110,6 +110,20 @@ function pickBalancedKind(existing: Enemy[]): EnemyKind {
   return pick;
 }
 
+function pickOrbitDir(kind: EnemyKind, existing: Enemy[]): 1 | -1 {
+  let plus = 0;
+  let minus = 0;
+  for (let i = 0; i < existing.length; i++) {
+    const other = existing[i]!;
+    if (other.kind !== kind) continue;
+    if (other.orbitDir === 1) plus += 1;
+    else minus += 1;
+  }
+  if (plus < minus) return 1;
+  if (minus < plus) return -1;
+  return Math.random() < 0.5 ? 1 : -1;
+}
+
 function pickSpreadPosition(
   player: Vec2,
   existing: Enemy[],
@@ -173,7 +187,7 @@ export function spawnEnemy(
       player.position.z - position.z,
     ),
     strafePhase: Math.random() * Math.PI * 2,
-    orbitDir: Math.random() < 0.5 ? 1 : -1,
+    orbitDir: pickOrbitDir(kind, existing),
     preferredRange: archetype.preferredRange + rangeJitter,
     fireCooldown: 0.35 + Math.random() * 0.9,
   };
@@ -253,9 +267,15 @@ export function updateEnemies(
     let vz = 0;
 
     if (enemy.kind === "interceptor") {
-      const weave = Math.sin(elapsed * 4.1 + enemy.strafePhase) * 0.28;
-      vx = nx * enemy.speed + -nz * weave * enemy.speed;
-      vz = nz * enemy.speed + nx * weave * enemy.speed;
+      const lane = 1.45 + (enemy.id % 3) * 0.4;
+      const aimX = player.position.x + -nz * enemy.orbitDir * lane;
+      const aimZ = player.position.z + nx * enemy.orbitDir * lane;
+      const adx = aimX - enemy.position.x;
+      const adz = aimZ - enemy.position.z;
+      const adist = Math.max(0.001, Math.hypot(adx, adz));
+      const weave = Math.sin(elapsed * 4.1 + enemy.strafePhase) * 0.22;
+      vx = (adx / adist) * enemy.speed + -nz * weave * enemy.speed;
+      vz = (adz / adist) * enemy.speed + nx * weave * enemy.speed;
     } else if (enemy.kind === "gunship") {
       const radial = dist - enemy.preferredRange;
       vx = nx * radial * 0.85 + -nz * enemy.orbitDir * enemy.speed;
