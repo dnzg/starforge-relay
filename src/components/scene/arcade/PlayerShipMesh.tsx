@@ -137,13 +137,20 @@ export function PlayerShipMesh({
     const group = groupRef.current;
     if (!group) return;
 
+    if (group.rotation.order !== "YXZ") {
+      group.rotation.order = "YXZ";
+    }
+
     if (preview) {
       group.position.set(0, 0, 0);
+      group.rotation.set(0, 0, 0);
       group.visible = true;
     } else if (playerRef?.current) {
       const player = playerRef.current;
-      group.position.set(player.position.x, 0, player.position.z);
+      group.position.set(player.position.x, -player.pitch * 0.35, player.position.z);
       group.rotation.y = player.rotation;
+      group.rotation.x = player.pitch;
+      group.rotation.z = player.roll;
 
       if (invulnRef?.current) {
         group.visible = Math.floor(player.invulnTimer * 18) % 2 === 0;

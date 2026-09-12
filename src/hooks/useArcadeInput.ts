@@ -173,26 +173,43 @@ export function useArcadeInput(enabled: boolean) {
     };
 
     const onMouseDown = (event: MouseEvent) => {
+      if (event.button !== 0) {
+        if (event.button === 2) {
+          event.preventDefault();
+        }
+        return;
+      }
       if (!isCanvasTarget(event.target)) return;
       keysRef.current.fire = true;
       recompute();
     };
 
-    const onMouseUp = () => {
+    const onMouseUp = (event: MouseEvent) => {
+      if (event.button !== 0) return;
       keysRef.current.fire = false;
       recompute();
+    };
+
+    const onContextMenu = (event: MouseEvent) => {
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      if (target.closest(".viewport") || target.closest("canvas")) {
+        event.preventDefault();
+      }
     };
 
     window.addEventListener("keydown", onKeyDown);
     window.addEventListener("keyup", onKeyUp);
     window.addEventListener("mousedown", onMouseDown);
     window.addEventListener("mouseup", onMouseUp);
+    window.addEventListener("contextmenu", onContextMenu);
 
     return () => {
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("keyup", onKeyUp);
       window.removeEventListener("mousedown", onMouseDown);
       window.removeEventListener("mouseup", onMouseUp);
+      window.removeEventListener("contextmenu", onContextMenu);
     };
   }, [enabled, recompute]);
 

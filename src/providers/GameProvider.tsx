@@ -19,6 +19,7 @@ import { nextSectorSeed } from "../lib/game/commandResolver";
 import { generateSectorPackage } from "../lib/sector/sectorPackage";
 import type { CombatCallbacks } from "../components/scene/arcade/types";
 import { createCombatEventQueue } from "../lib/combat/combatEventQueue";
+import { HYPERSPACE_MS } from "../lib/game/hyperspace";
 import {
   loadCaptainProfile,
   type CaptainGender,
@@ -54,7 +55,6 @@ interface GameContextValue extends GameClient {
 const GameContext = createContext<GameContextValue | null>(null);
 
 const COMBAT_FLUSH_MS = 150;
-const HYPERSPACE_MS = 3000;
 
 function texturePhaseLabel(phase: TexturePhase, loading: boolean): string {
   if (loading) return "Generating sector texture…";
@@ -262,7 +262,7 @@ export function GameProvider({
           toldRef.current.gate = true;
           void client.appendShipMessage(
             "combat",
-            "Jump gate is live north of us. Fly the ring when you are ready.",
+            "Jump gate unlocked. Fly into the glowing JUMP ring — or say jump if you have fuel.",
             "text",
           );
         }

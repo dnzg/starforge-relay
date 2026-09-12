@@ -13,14 +13,28 @@ export function SectorProgress() {
     return () => window.clearInterval(interval);
   }, []);
 
+  const cleared = Math.min(kills, KILLS_FOR_JUMP);
+
   return (
-    <div className="sector-progress">
+    <div className={`sector-progress ${gateUnlocked ? "is-gate" : ""}`}>
       {gateUnlocked ? (
-        <span className="sector-progress-gate">Jump gate online — fly north to jump</span>
+        <>
+          <span className="sector-progress-gate">
+            Jump gate unlocked — fly into the JUMP ring
+          </span>
+          <span className="sector-progress-tip">
+            Or say “jump” if you have fuel
+          </span>
+        </>
       ) : (
-        <span>
-          Hostiles cleared: {Math.min(kills, KILLS_FOR_JUMP)} / {KILLS_FOR_JUMP}
-        </span>
+        <>
+          <span>
+            Hostiles {cleared} / {KILLS_FOR_JUMP} to unlock jump gate
+          </span>
+          <span className="sector-progress-tip">
+            Voice examples: “scan the sector” · “status” · “jump”
+          </span>
+        </>
       )}
     </div>
   );
