@@ -6,7 +6,12 @@ import {
   resolveCommand,
   sectorNameFromSeed,
 } from "./commandResolver";
-import type { CommandLogEntry, CommandResult, GameClient, RunState } from "./types";
+import type {
+  CommandLogEntry,
+  CommandResult,
+  ExtendedGameClient,
+  RunState,
+} from "./types";
 
 let runCounter = 0;
 
@@ -15,19 +20,7 @@ function nextRunId(): string {
   return `local-run-${runCounter}`;
 }
 
-export function createLocalGameClient(): GameClient & {
-  subscribe: (listener: () => void) => () => void;
-  setPlanetTextureUrl: (url: string | null | undefined) => void;
-  applyCombatDamage: (damage: number) => void;
-  awardCombatKill: (credits: number) => void;
-  respawnInSector: () => void;
-  performSectorJump: () => CommandResult | null;
-  appendShipMessage: (
-    heardText: string,
-    shipReply: string,
-    source?: "text" | "voice",
-  ) => Promise<void>;
-} {
+export function createLocalGameClient(): ExtendedGameClient {
   let run: RunState | null = null;
   let logs: CommandLogEntry[] = [];
   let loading = false;
@@ -46,6 +39,7 @@ export function createLocalGameClient(): GameClient & {
       return loading;
     },
     backend: "local",
+    leaderboard: [],
 
     subscribe(listener: () => void) {
       listeners.add(listener);
@@ -82,18 +76,7 @@ export function createLocalGameClient(): GameClient & {
       notify();
     },
 
-    respawnInSector() {
-      if (!run) return;
-      run = {
-        ...run,
-        shields: 100,
-        hull: 100,
-        status: "active",
-      };
-      notify();
-    },
-
-    performSectorJump() {
+    async performSectorJump() {
       if (!run || run.status !== "active") return null;
       if (run.fuel < 20) return null;
 
@@ -109,6 +92,7 @@ export function createLocalGameClient(): GameClient & {
         scanData: undefined,
         planetTextureUrl: undefined,
         jumpsCompleted: run.jumpsCompleted + 1,
+        sectorKills: 0,
         hyperspaceActive: true,
       };
       notify();
@@ -119,12 +103,14 @@ export function createLocalGameClient(): GameClient & {
       };
     },
 
-    awardCombatKill(credits: number) {
+    awardCombatKill(credits: number, scoreDelta = 100) {
       if (!run || run.status !== "active") return;
       run = {
         ...run,
         credits: run.credits + credits,
         threatLevel: Math.max(1, run.threatLevel - 1),
+        arcadeScore: (run.arcadeScore ?? 0) + scoreDelta,
+        sectorKills: (run.sectorKills ?? 0) + 1,
       };
       notify();
     },

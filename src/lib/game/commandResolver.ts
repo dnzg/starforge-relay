@@ -68,6 +68,8 @@ export function createInitialRun(id: string, seed?: number): RunState {
     threatLevel: 3,
     hyperspaceActive: false,
     jumpsCompleted: 0,
+    arcadeScore: 0,
+    sectorKills: 0,
   };
 }
 

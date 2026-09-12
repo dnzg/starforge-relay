@@ -112,10 +112,11 @@ function GameShell() {
 }
 
 export default function App() {
-  const { displayName } = useTelegramWebApp();
+  const { displayName, user } = useTelegramWebApp();
+  const telegramId = user?.id ? String(user.id) : undefined;
 
   return (
-    <GameProvider displayName={displayName}>
+    <GameProvider displayName={displayName} telegramId={telegramId}>
       <GameShell />
     </GameProvider>
   );

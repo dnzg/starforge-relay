@@ -1,9 +1,10 @@
 import { useCallback, useEffect } from "react";
 import { useGame } from "../../providers/GameProvider";
 import { playSfx } from "../../lib/audio/gameAudio";
+import { LeaderboardPanel } from "./LeaderboardPanel";
 
 export function GameOverOverlay() {
-  const { run, combatScore, sectorKills, restartRun, captain } = useGame();
+  const { run, combatScore, sectorKills, restartRun, captain, backend } = useGame();
 
   const retry = useCallback(() => {
     void restartRun();
@@ -57,6 +58,11 @@ export function GameOverOverlay() {
             <dd>{run.jumpsCompleted}</dd>
           </div>
         </dl>
+        {backend === "convex" ? (
+          <div className="stagger-item">
+            <LeaderboardPanel />
+          </div>
+        ) : null}
         <button type="button" className="onboarding-cta stagger-item" onClick={retry}>
           Try again
         </button>

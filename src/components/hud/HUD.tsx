@@ -15,6 +15,8 @@ import { Minimap } from "./Minimap";
 import { SectorProgress } from "./SectorProgress";
 import { HyperspaceOverlay } from "./HyperspaceOverlay";
 import { ShipAiAvatar } from "./ShipAiAvatar";
+import { ConvexBadge } from "./ConvexBadge";
+import { LeaderboardPanel } from "./LeaderboardPanel";
 
 interface HUDProps {
   onTouchMove: (x: number, y: number) => void;
@@ -222,9 +224,11 @@ export function HUD({
         <div className="hud-status-col">
           <StatusPanel compact />
           <SectorProgress />
+          <ConvexBadge />
         </div>
       </header>
 
+      <LeaderboardPanel compact />
       <Minimap />
       <ControlHintStrip visible={showHintStrip} onDismiss={dismissHints} />
 

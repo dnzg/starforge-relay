@@ -13,7 +13,9 @@ npm run dev
 
 Open **http://127.0.0.1:43123** — you should see a live WebGL starfield, planet, cockpit frame, and command HUD.
 
-Type `scan` or tap the **scan** chip. The transcript and status panel update immediately via the **local game backend** (no API keys required for the demo loop).
+Type `scan` or tap the **scan** chip. The transcript and status panel update immediately.
+
+**Backend:** When `VITE_CONVEX_URL` is set, runs, combat stats, sector history, and the live leaderboard sync through **Convex**. Without it, a **local in-memory fallback** keeps the arcade loop working for offline dev.
 
 ## Architecture
 
@@ -21,7 +23,7 @@ Type `scan` or tap the **scan** chip. The transcript and status panel update imm
 |-------|------|--------|
 | Frontend | Vite + React + TypeScript | Ready |
 | 3D viewport | React Three Fiber + drei + Three.js | Ready |
-| Backend | Convex schema + mutations/queries | Stubbed, ready for `npx convex dev` |
+| Backend | Convex (runs, players, leaderboard, combat sync) | Live when `VITE_CONVEX_URL` is set |
 | Voice | x.ai realtime + `/api/voice/*` + browser speech + ship TTS | Wired (graceful fallback) |
 | Sector art | `generateSectorArt(seed)` → Fal `flux/schnell` via `/api/sector-art` | Wired (graceful fallback) |
 | Ship AI | Fal portrait (`/api/ship-avatar`) + Fal/x.ai TTS (`/api/voice/speak`) | Wired (offline fallback) |
@@ -68,23 +70,53 @@ Without `XAI_API_KEY`, voice mock + browser speech + text still work. Without bo
 npm run worker:sector -- --seed=482910 --name="Azure Belt 494" --fal
 ```
 
-## Convex setup (optional for local demo)
+## Convex setup (required for hackathon live backend)
 
-The app runs locally without Convex. To connect a real backend:
+The Mini App **automatically uses Convex** when `VITE_CONVEX_URL` is present at build time. Without it, the local fallback runs in-memory only.
+
+### Local development with Convex
 
 ```bash
-npx convex dev
+# Terminal 1 — Convex dev sync (creates deployment, pushes schema + functions)
+npm run convex:dev
+
+# Terminal 2 — Vite + Hono API
+npm run dev
 ```
 
-Copy the deployment URL into `.env`:
+Copy the deployment URL from `npx convex dev` output into `.env`:
 
 ```env
 VITE_CONVEX_URL=https://your-deployment.convex.cloud
+CONVEX_DEPLOYMENT=dev:your-deployment
 ```
 
-Then wire `GameProvider` to Convex mutations (`startRun`, `sendCommand`) and query `getRun`. Schema lives in `convex/schema.ts`.
+Restart Vite after changing `VITE_CONVEX_URL` (Vite inlines env at startup).
 
-Tables: `players`, `runs`, `sectors`, `commandLogs`, `leaderboard`.
+### What syncs to Convex
+
+- **Players** — keyed by Telegram `initDataUnsafe.user.id` when available
+- **Runs** — hull, shields, fuel, credits, sector seed/name, arcade score, kills
+- **Sectors** — history on each jump
+- **Command logs** — bridge commands + ship AI lines
+- **Leaderboard** — top scores on run end (combat death, flee, etc.)
+
+HUD shows **“Convex live”** badge + run id suffix, plus a live leaderboard panel when connected.
+
+### Production deploy
+
+```bash
+npx convex deploy
+```
+
+Set in Render (and locally for production builds):
+
+| Variable | Required | Purpose |
+|----------|----------|---------|
+| `VITE_CONVEX_URL` | Yes (for Convex path) | Client URL — **must be set at Vite build time** |
+| `CONVEX_DEPLOY_KEY` | Yes (CI/deploy) | `npx convex deploy` from Render build or GitHub Actions |
+
+Tables: `players`, `runs`, `sectors`, `commandLogs`, `leaderboard`. Schema: `convex/schema.ts`.
 
 ## Environment variables
 
@@ -92,7 +124,8 @@ See `.env.example`:
 
 | Variable | Purpose |
 |----------|---------|
-| `VITE_CONVEX_URL` | Convex client URL |
+| `VITE_CONVEX_URL` | Convex client URL (required for live backend; Vite build-time) |
+| `CONVEX_DEPLOYMENT` | Local Convex dev deployment name |
 | `CONVEX_DEPLOY_KEY` | CI / Render Convex deploy |
 | `XAI_API_KEY` | x.ai Voice token + ship AI interpret + TTS fallback (server only) |
 | `FAL_KEY` | Fal.ai planet textures, ship avatar, and TTS (server/worker only) |
@@ -127,15 +160,18 @@ This repo ships a **Node web service** (not static-only) so API keys stay server
 | `FAL_KEY` | No | Fal planet textures, ship avatar, and TTS |
 | `XAI_API_KEY` | No | x.ai voice token + ship AI interpret + TTS |
 | `VITE_APP_URL` | No | Public URL for Telegram Mini App menu |
+| `VITE_CONVEX_URL` | Yes (hackathon) | Convex client URL — **baked into Vite build** |
+| `CONVEX_DEPLOY_KEY` | Yes (with Convex) | Deploy schema/functions before or during build |
 | `TELEGRAM_BOT_TOKEN` | No | Future bot webhooks |
 | `PORT` | Auto | Render sets this automatically |
 
 The service serves the Vite build from `dist/` and exposes `/api/*` on the same origin.
 
-### Convex (optional)
+### Convex on Render
 
-1. Run `npx convex deploy` in CI or locally
-2. Set `CONVEX_DEPLOY_KEY` in Render (if using automated deploy)
+1. Run `npx convex deploy` (locally or in build step with `CONVEX_DEPLOY_KEY`)
+2. Set `VITE_CONVEX_URL` in Render **before** `npm run build` runs (Render env vars are available at build time)
+3. Redeploy after changing `VITE_CONVEX_URL` — the value is inlined into the client bundle
 
 ### Telegram Mini App
 
@@ -200,10 +236,10 @@ render.yaml       Render blueprint
 
 ### Should (same-day build)
 
-- [ ] Wire Convex live (`npx convex dev`, replace local client)
+- [x] Wire Convex live (`GameProvider` → Convex when `VITE_CONVEX_URL` set)
 - [x] Telegram Mini App menu + theme sync polish
 - [x] x.ai Voice realtime command stream + interpret fallback
-- [ ] Leaderboard panel from `getLeaderboard`
+- [x] Leaderboard panel from `getLeaderboard`
 
 ### Stretch (if time remains)
 

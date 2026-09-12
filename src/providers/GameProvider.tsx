@@ -8,13 +8,19 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { ConvexProvider } from "convex/react";
 import {
   generateSectorArt,
   peekSectorArtCache,
   prefetchSectorArt,
 } from "../lib/assets/falSectorArt";
 import { createLocalGameClient } from "../lib/game/localGameClient";
-import type { CommandResult, GameClient, RunState } from "../lib/game/types";
+import { useConvexGameClient } from "../lib/game/convexGameClient";
+import type {
+  CommandResult,
+  ExtendedGameClient,
+  LeaderboardEntry,
+} from "../lib/game/types";
 import { nextSectorSeed } from "../lib/game/commandResolver";
 import { generateSectorPackage } from "../lib/sector/sectorPackage";
 import type { CombatCallbacks } from "../components/scene/arcade/types";
@@ -28,10 +34,20 @@ import {
   type CaptainGender,
   type CaptainProfile,
 } from "../lib/game/captainProfile";
+import { getConvexClient, getConvexUrl } from "../lib/convex/client";
+import type { RunState } from "../lib/game/types";
 
 type TexturePhase = "ready" | "generating" | "cached" | "procedural";
 
-interface GameContextValue extends GameClient {
+interface GameContextValue {
+  run: RunState | null;
+  logs: ExtendedGameClient["logs"];
+  loading: boolean;
+  backend: "local" | "convex";
+  leaderboard: LeaderboardEntry[];
+  startRun: ExtendedGameClient["startRun"];
+  sendCommand: ExtendedGameClient["sendCommand"];
+  appendShipMessage: ExtendedGameClient["appendShipMessage"];
   hyperspaceActive: boolean;
   lastHyperspaceAt: number;
   textureLoading: boolean;
@@ -46,11 +62,6 @@ interface GameContextValue extends GameClient {
   triggerSectorJump: () => Promise<void>;
   restartRun: () => Promise<void>;
   markPlanetTextureReady: () => void;
-  appendShipMessage: (
-    heardText: string,
-    shipReply: string,
-    source?: "text" | "voice",
-  ) => Promise<void>;
   captain: CaptainProfile | null;
   suggestedName: string;
   completeCaptainSetup: (name: string, gender: CaptainGender) => void;
@@ -74,22 +85,25 @@ function texturePhaseLabel(phase: TexturePhase, loading: boolean): string {
   }
 }
 
-export function GameProvider({
+function GameProviderCore({
   children,
   displayName,
+  telegramId,
+  client,
 }: {
   children: ReactNode;
   displayName: string;
+  telegramId?: string;
+  client: ExtendedGameClient;
 }) {
-  const client = useMemo(() => createLocalGameClient(), []);
   const [, tick] = useState(0);
   const [hyperspaceActive, setHyperspaceActive] = useState(false);
   const [lastHyperspaceAt, setLastHyperspaceAt] = useState(0);
   const [textureLoading, setTextureLoading] = useState(false);
   const [texturePhase, setTexturePhase] = useState<TexturePhase>("ready");
   const [textureCached, setTextureCached] = useState(false);
-  const [combatScore, setCombatScore] = useState(0);
-  const [sectorKills, setSectorKills] = useState(0);
+  const [localCombatScore, setLocalCombatScore] = useState(0);
+  const [localSectorKills, setLocalSectorKills] = useState(0);
   const [jumpGateUnlocked, setJumpGateUnlocked] = useState(false);
   const [skyTextureUrl, setSkyTextureUrl] = useState<string | null>(null);
   const [started, setStarted] = useState(false);
@@ -106,6 +120,15 @@ export function GameProvider({
     gate: false,
   });
 
+  const combatScore =
+    client.backend === "convex"
+      ? (client.run?.arcadeScore ?? 0)
+      : localCombatScore;
+  const sectorKills =
+    client.backend === "convex"
+      ? (client.run?.sectorKills ?? 0)
+      : localSectorKills;
+
   const textureStatus = texturePhaseLabel(texturePhase, textureLoading);
 
   useEffect(() => {
@@ -119,8 +142,8 @@ export function GameProvider({
   useEffect(() => {
     if (started || !captain) return;
     setStarted(true);
-    void client.startRun(captain.name || displayName);
-  }, [captain, client, displayName, started]);
+    void client.startRun(captain.name || displayName, telegramId);
+  }, [captain, client, displayName, started, telegramId]);
 
   const completeCaptainSetup = useCallback((name: string, gender: CaptainGender) => {
     const profile = { name, gender };
@@ -133,9 +156,9 @@ export function GameProvider({
     setLastHyperspaceAt(Date.now());
     window.setTimeout(() => setHyperspaceActive(false), HYPERSPACE_MS);
     loadedSectorKeyRef.current = null;
-    setCombatScore(0);
+    setLocalCombatScore(0);
     sectorKillsRef.current = 0;
-    setSectorKills(0);
+    setLocalSectorKills(0);
     setJumpGateUnlocked(false);
     toldRef.current = { firstBlood: false, hullLow: false, gate: false };
   }, []);
@@ -232,7 +255,7 @@ export function GameProvider({
     jumpPendingRef.current = true;
     telegramHaptic("heavy");
 
-    const result = client.performSectorJump();
+    const result = await client.performSectorJump();
     if (result?.hyperspaceTrigger) {
       beginHyperspaceTransition();
       if (client.run) {
@@ -247,14 +270,20 @@ export function GameProvider({
     if (!captain) return;
     jumpPendingRef.current = false;
     setHyperspaceActive(false);
-    setCombatScore(0);
+    setLocalCombatScore(0);
     sectorKillsRef.current = 0;
-    setSectorKills(0);
+    setLocalSectorKills(0);
     setJumpGateUnlocked(false);
     toldRef.current = { firstBlood: false, hullLow: false, gate: false };
     loadedSectorKeyRef.current = null;
-    await client.startRun(captain.name || displayName);
-  }, [captain, client, displayName]);
+    await client.startRun(captain.name || displayName, telegramId);
+  }, [captain, client, displayName, telegramId]);
+
+  useEffect(() => {
+    if (client.backend === "convex") {
+      sectorKillsRef.current = client.run?.sectorKills ?? 0;
+    }
+  }, [client.backend, client.run?.sectorKills]);
 
   useEffect(() => {
     const interval = window.setInterval(() => {
@@ -268,26 +297,48 @@ export function GameProvider({
           const creditReward = 8 + Math.floor(Math.random() * 6);
           client.awardCombatKill(creditReward);
         }
-        const wasZero = sectorKillsRef.current === 0;
-        sectorKillsRef.current += snapshot.kills;
-        setSectorKills(sectorKillsRef.current);
-        setCombatScore((prev) => prev + snapshot.kills * 100);
-        if (wasZero && !toldRef.current.firstBlood) {
-          toldRef.current.firstBlood = true;
-          const name = captain?.name ?? "Captain";
-          void client.appendShipMessage(
-            "combat",
-            `First hull cracked, ${name}. Keep the nose on the next one.`,
-            "text",
-          );
-        }
-        if (sectorKillsRef.current >= 3 && !toldRef.current.gate) {
-          toldRef.current.gate = true;
-          void client.appendShipMessage(
-            "combat",
-            "Jump gate unlocked. Fly into the glowing ring — or say jump if you have fuel.",
-            "text",
-          );
+        if (client.backend === "local") {
+          const wasZero = sectorKillsRef.current === 0;
+          sectorKillsRef.current += snapshot.kills;
+          setLocalSectorKills(sectorKillsRef.current);
+          setLocalCombatScore((prev) => prev + snapshot.kills * 100);
+          if (wasZero && !toldRef.current.firstBlood) {
+            toldRef.current.firstBlood = true;
+            const name = captain?.name ?? "Captain";
+            void client.appendShipMessage(
+              "combat",
+              `First hull cracked, ${name}. Keep the nose on the next one.`,
+              "text",
+            );
+          }
+          if (sectorKillsRef.current >= 3 && !toldRef.current.gate) {
+            toldRef.current.gate = true;
+            void client.appendShipMessage(
+              "combat",
+              "Jump gate unlocked. Fly into the glowing ring — or say jump if you have fuel.",
+              "text",
+            );
+          }
+        } else {
+          const prevKills = client.run?.sectorKills ?? 0;
+          const killsNow = prevKills + snapshot.kills;
+          if (prevKills === 0 && !toldRef.current.firstBlood) {
+            toldRef.current.firstBlood = true;
+            const name = captain?.name ?? "Captain";
+            void client.appendShipMessage(
+              "combat",
+              `First hull cracked, ${name}. Keep the nose on the next one.`,
+              "text",
+            );
+          }
+          if (killsNow >= 3 && !toldRef.current.gate) {
+            toldRef.current.gate = true;
+            void client.appendShipMessage(
+              "combat",
+              "Jump gate unlocked. Fly into the glowing ring — or say jump if you have fuel.",
+              "text",
+            );
+          }
         }
       }
 
@@ -344,7 +395,7 @@ export function GameProvider({
       return result;
     },
     [beginHyperspaceTransition, client, loadSectorAssets],
-  ) as GameClient["sendCommand"];
+  ) as ExtendedGameClient["sendCommand"];
 
   const appendShipMessage = useCallback(
     async (
@@ -375,6 +426,7 @@ export function GameProvider({
     logs: client.logs,
     loading: client.loading,
     backend: client.backend,
+    leaderboard: client.leaderboard,
     startRun: client.startRun.bind(client),
     sendCommand,
     appendShipMessage,
@@ -398,6 +450,75 @@ export function GameProvider({
   };
 
   return <GameContext.Provider value={value}>{children}</GameContext.Provider>;
+}
+
+function ConvexGameProvider({
+  children,
+  displayName,
+  telegramId,
+}: {
+  children: ReactNode;
+  displayName: string;
+  telegramId?: string;
+}) {
+  const client = useConvexGameClient();
+  return (
+    <GameProviderCore
+      displayName={displayName}
+      telegramId={telegramId}
+      client={client}
+    >
+      {children}
+    </GameProviderCore>
+  );
+}
+
+function LocalGameProvider({
+  children,
+  displayName,
+  telegramId,
+}: {
+  children: ReactNode;
+  displayName: string;
+  telegramId?: string;
+}) {
+  const client = useMemo(() => createLocalGameClient(), []);
+  return (
+    <GameProviderCore
+      displayName={displayName}
+      telegramId={telegramId}
+      client={client}
+    >
+      {children}
+    </GameProviderCore>
+  );
+}
+
+export function GameProvider({
+  children,
+  displayName,
+  telegramId,
+}: {
+  children: ReactNode;
+  displayName: string;
+  telegramId?: string;
+}) {
+  const convexUrl = getConvexUrl();
+  if (convexUrl) {
+    return (
+      <ConvexProvider client={getConvexClient()}>
+        <ConvexGameProvider displayName={displayName} telegramId={telegramId}>
+          {children}
+        </ConvexGameProvider>
+      </ConvexProvider>
+    );
+  }
+
+  return (
+    <LocalGameProvider displayName={displayName} telegramId={telegramId}>
+      {children}
+    </LocalGameProvider>
+  );
 }
 
 export function useGame(): GameContextValue {
