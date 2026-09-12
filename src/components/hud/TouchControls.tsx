@@ -4,6 +4,7 @@ import { arcadeUiRef } from "../../lib/combat/arcadeUiRef";
 interface TouchControlsProps {
   disabled?: boolean;
   onMove: (x: number, y: number) => void;
+  onBoost: (active: boolean) => void;
   onFire: (active: boolean) => void;
   onSuper: (active: boolean) => void;
 }
@@ -11,12 +12,15 @@ interface TouchControlsProps {
 export function TouchControls({
   disabled,
   onMove,
+  onBoost,
   onFire,
   onSuper,
 }: TouchControlsProps) {
   const dpadRef = useRef<HTMLDivElement>(null);
   const activePointerRef = useRef<number | null>(null);
   const [superReady, setSuperReady] = useState(false);
+  const [mana, setMana] = useState(arcadeUiRef.mana);
+  const [boostHeld, setBoostHeld] = useState(false);
   const [ammo, setAmmo] = useState(arcadeUiRef.ammo);
   const [reloading, setReloading] = useState(false);
   const [reloadProgress, setReloadProgress] = useState(1);
@@ -24,6 +28,7 @@ export function TouchControls({
   useEffect(() => {
     const interval = window.setInterval(() => {
       setSuperReady(arcadeUiRef.manaReady);
+      setMana(arcadeUiRef.mana);
       setAmmo(arcadeUiRef.ammo);
       setReloading(arcadeUiRef.reloading);
       setReloadProgress(arcadeUiRef.reloadProgress);
@@ -91,6 +96,32 @@ export function TouchControls({
           onPointerCancel={() => onSuper(false)}
         >
           SUPER
+        </button>
+        <button
+          type="button"
+          className={`touch-boost ${mana > 0.04 ? "is-hot" : "is-empty"} ${boostHeld && mana > 0 ? "is-on" : ""}`}
+          disabled={disabled}
+          aria-label="Boost"
+          style={{ "--mana": String(mana) } as CSSProperties}
+          onPointerDown={() => {
+            setBoostHeld(true);
+            onBoost(true);
+          }}
+          onPointerUp={() => {
+            setBoostHeld(false);
+            onBoost(false);
+          }}
+          onPointerLeave={() => {
+            setBoostHeld(false);
+            onBoost(false);
+          }}
+          onPointerCancel={() => {
+            setBoostHeld(false);
+            onBoost(false);
+          }}
+        >
+          <span>BOOST</span>
+          <small>{Math.round(mana * 100)}</small>
         </button>
         <button
           type="button"

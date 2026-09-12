@@ -1,4 +1,5 @@
 import { playSfx, sfxPan } from "../../../lib/audio/gameAudio";
+import { headingForwardX, headingForwardZ } from "./arcadeFlight";
 import {
   ENEMY_KINDS,
   dist2,
@@ -13,6 +14,11 @@ import {
 export const SECTOR_BOUNDS = 22;
 export const MAX_ENEMIES = 12;
 export const MAX_PROJECTILES = 24;
+export const SECTOR_ENEMY_MIN = 5;
+export const SECTOR_ENEMY_MAX = 8;
+export const INITIAL_SPAWN_DELAY = 2.2;
+export const SPAWN_INTERVAL_MIN = 1.7;
+export const SPAWN_INTERVAL_MAX = 3.2;
 
 const MIN_SPAWN_SEPARATION = 5.2;
 const SEPARATION_PADDING = 1.85;
@@ -21,6 +27,8 @@ const MAX_SPEED_MULT = 1.4;
 const PLAYER_STANDOFF_PADDING = 3.15;
 const SPAWN_CANDIDATES = 14;
 const ENEMY_LIMIT = SECTOR_BOUNDS + 5;
+const SPAWN_CONE_TIGHT = 0.92;
+const SPAWN_CONE_WIDE = 1.28;
 
 interface ArchetypeConfig {
   kind: EnemyKind;
@@ -152,29 +160,40 @@ function pickOrbitDir(kind: EnemyKind, existing: Enemy[]): 1 | -1 {
 }
 
 function pickSpreadPosition(
-  player: Vec2,
+  player: PlayerState,
   existing: Enemy[],
   radiusMin: number,
   radiusMax: number,
 ): Vec2 {
-  let bestX = player.x + radiusMin;
-  let bestZ = player.z;
+  const origin = player.position;
+  const fx = headingForwardX(player.rotation);
+  const fz = headingForwardZ(player.rotation);
+  let bestX = origin.x + fx * radiusMin;
+  let bestZ = origin.z + fz * radiusMin;
   let bestScore = -Infinity;
 
   for (let c = 0; c < SPAWN_CANDIDATES; c++) {
-    const angle = (c / SPAWN_CANDIDATES) * Math.PI * 2 + Math.random() * 0.28;
+    const cone = Math.random() < 0.84 ? SPAWN_CONE_TIGHT : SPAWN_CONE_WIDE;
+    const yawOffset = (Math.random() * 2 - 1) * cone;
+    const spawnYaw = player.rotation + yawOffset;
     const radius = radiusMin + Math.random() * (radiusMax - radiusMin);
-    const x = player.x + Math.cos(angle) * radius;
-    const z = player.z + Math.sin(angle) * radius;
+    const x = origin.x - Math.sin(spawnYaw) * radius;
+    const z = origin.z - Math.cos(spawnYaw) * radius;
     clampToArena(x, z, posScratch);
     let nearest = Infinity;
     for (let i = 0; i < existing.length; i++) {
       const d = dist2(posScratch, existing[i]!.position);
       if (d < nearest) nearest = d;
     }
+    const dx = posScratch.x - origin.x;
+    const dz = posScratch.z - origin.z;
+    const dist = Math.hypot(dx, dz);
+    const forward = dist > 0.0001 ? (dx * fx + dz * fz) / dist : 0;
     const score =
       nearest +
       (nearest >= MIN_SPAWN_SEPARATION ? 4 : 0) +
+      forward * 10 +
+      (forward < 0.18 ? -14 : 0) +
       Math.random() * 0.35;
     if (score > bestScore) {
       bestScore = score;
@@ -186,6 +205,58 @@ function pickSpreadPosition(
   return { x: bestX, z: bestZ };
 }
 
+export function sectorEnemyBudget(threatLevel: number): number {
+  return Math.max(
+    SECTOR_ENEMY_MIN,
+    Math.min(SECTOR_ENEMY_MAX, SECTOR_ENEMY_MIN + Math.floor(threatLevel / 2)),
+  );
+}
+
+export function nextSpawnDelay(first: boolean): number {
+  if (first) return INITIAL_SPAWN_DELAY;
+  return SPAWN_INTERVAL_MIN + Math.random() * (SPAWN_INTERVAL_MAX - SPAWN_INTERVAL_MIN);
+}
+
+export interface EnemySpawnWave {
+  budget: number;
+  timer: number;
+}
+
+export function createEnemySpawnWave(threatLevel: number): EnemySpawnWave {
+  return {
+    budget: sectorEnemyBudget(threatLevel),
+    timer: nextSpawnDelay(true),
+  };
+}
+
+export function tickEnemySpawns(
+  enemies: Enemy[],
+  player: PlayerState,
+  threatLevel: number,
+  dt: number,
+  nextId: { current: number },
+  spawn: EnemySpawnWave,
+): void {
+  if (spawn.budget <= 0 || enemies.length >= MAX_ENEMIES) return;
+  spawn.timer -= dt;
+  if (spawn.timer > 0) return;
+  enemies.push(spawnEnemy(nextId.current++, player, threatLevel, enemies));
+  spawn.budget -= 1;
+  spawn.timer = spawn.budget > 0 ? nextSpawnDelay(false) : 0;
+}
+
+export function spawnForwardness(player: PlayerState, point: Vec2): number {
+  const dx = point.x - player.position.x;
+  const dz = point.z - player.position.z;
+  const dist = Math.hypot(dx, dz);
+  if (dist < 0.0001) return 0;
+  return (
+    (dx * headingForwardX(player.rotation) +
+      dz * headingForwardZ(player.rotation)) /
+    dist
+  );
+}
+
 export function spawnEnemy(
   id: number,
   player: PlayerState,
@@ -195,7 +266,7 @@ export function spawnEnemy(
   const kind = pickBalancedKind(existing);
   const archetype = ARCHETYPES[kind];
   const position = pickSpreadPosition(
-    player.position,
+    player,
     existing,
     archetype.spawnRadiusMin,
     archetype.spawnRadiusMax,

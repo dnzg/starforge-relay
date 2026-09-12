@@ -1,7 +1,16 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createInitialPlayer, type Enemy } from "./types.ts";
-import { enemyContactRadius, updateEnemies } from "./enemyBehavior.ts";
+import {
+  createEnemySpawnWave,
+  enemyContactRadius,
+  INITIAL_SPAWN_DELAY,
+  sectorEnemyBudget,
+  spawnEnemy,
+  spawnForwardness,
+  tickEnemySpawns,
+  updateEnemies,
+} from "./enemyBehavior.ts";
 
 function interceptorNearPlayer(): Enemy {
   return {
@@ -57,4 +66,34 @@ test("hostile ships settle outside contact range instead of suiciding into the p
       `${kind} collapsed to ${dist.toFixed(2)} (contact ${contact})`,
     );
   }
+});
+
+test("new hostiles spawn in front of the player instead of behind", () => {
+  const player = createInitialPlayer();
+  player.rotation = 0.4;
+  let ahead = 0;
+  for (let i = 0; i < 24; i++) {
+    const enemy = spawnEnemy(i + 1, player, 3, []);
+    const facing = spawnForwardness(player, enemy.position);
+    assert.ok(facing > 0.12, `spawn ${i} faced ${facing.toFixed(2)}`);
+    if (facing > 0.35) ahead += 1;
+  }
+  assert.ok(ahead >= 18, `only ${ahead} of 24 spawns were clearly ahead`);
+});
+
+test("sector hostiles arrive one by one after a delay", () => {
+  const player = createInitialPlayer();
+  const enemies: Enemy[] = [];
+  const spawn = createEnemySpawnWave(3);
+  const nextId = { current: 1 };
+
+  tickEnemySpawns(enemies, player, 3, INITIAL_SPAWN_DELAY - 0.2, nextId, spawn);
+  assert.equal(enemies.length, 0);
+
+  tickEnemySpawns(enemies, player, 3, 0.4, nextId, spawn);
+  assert.equal(enemies.length, 1);
+  assert.equal(spawn.budget, sectorEnemyBudget(3) - 1);
+
+  tickEnemySpawns(enemies, player, 3, 0.2, nextId, spawn);
+  assert.equal(enemies.length, 1);
 });

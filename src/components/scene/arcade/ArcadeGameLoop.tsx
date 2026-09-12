@@ -33,6 +33,10 @@ import {
   applyArcadeFlight,
   CAM_BACK,
   CAM_HEIGHT,
+  CAM_LOOK_AHEAD,
+  MOBILE_CAM_BACK,
+  MOBILE_CAM_HEIGHT,
+  MOBILE_CAM_LOOK_AHEAD,
 } from "./arcadeFlight";
 import {
   createExplosionPool,
@@ -41,12 +45,14 @@ import {
 } from "./ExplosionBursts";
 import { lerpAngle, noseDirection } from "./shipGeometry";
 import {
+  createEnemySpawnWave,
   enemyContactRadius,
   enemyHitRadius,
   MAX_PROJECTILES,
   SECTOR_BOUNDS,
-  spawnEnemy,
+  tickEnemySpawns,
   updateEnemies,
+  type EnemySpawnWave,
 } from "./enemyBehavior";
 import {
   createInitialPlayer,
@@ -77,10 +83,9 @@ const NOVA_DAMAGE = 3;
 const MANA_LOCK_AFTER_SUPER = 0.85;
 const MAX_DELTA = 0.05;
 const TIME_SCALE_LERP = 7;
-const SECTOR_ENEMY_MIN = 5;
-const SECTOR_ENEMY_MAX = 8;
 const JUMP_GATE_RADIUS = 2.2;
 const BASE_FOV = 60;
+const MOBILE_BASE_FOV = 68;
 const BOOST_FOV = 76;
 const WARP_FOV = 72;
 const BOOST_CAM_BACK = 1.35;
@@ -108,6 +113,7 @@ function resetGameState(
   superBurstRef: RefObject<SuperBurstState>,
   manaLockRef: RefObject<number>,
   blastRef: RefObject<BlastWeaponState>,
+  spawnRef: RefObject<EnemySpawnWave>,
 ) {
   if (sectorKeyRef.current === sectorKey) return;
   sectorKeyRef.current = sectorKey;
@@ -130,22 +136,7 @@ function resetGameState(
   writeBlastUi(blastRef.current);
   superBurstRef.current.active = false;
   resetArcadeUiForSector();
-
-  const initialCount = THREE.MathUtils.clamp(
-    SECTOR_ENEMY_MIN + Math.floor(threatLevel / 2),
-    SECTOR_ENEMY_MIN,
-    SECTOR_ENEMY_MAX,
-  );
-  for (let i = 0; i < initialCount; i++) {
-    enemiesRef.current.push(
-      spawnEnemy(
-        nextIdRef.current++,
-        playerRef.current,
-        threatLevel,
-        enemiesRef.current,
-      ),
-    );
-  }
+  spawnRef.current = createEnemySpawnWave(threatLevel);
 }
 
 function updateProjectiles(projectiles: Projectile[], dt: number): void {
@@ -339,7 +330,15 @@ export function ArcadeGameLoop({
     age: 0,
     duration: 0.5,
   });
+  const spawnRef = useRef<EnemySpawnWave>(createEnemySpawnWave(threatLevel));
   const vfx = useMemo(() => createCombatVfxState(), []);
+  const mobileCam = useMemo(() => {
+    if (typeof window === "undefined") return false;
+    return (
+      window.matchMedia("(hover: none) and (pointer: coarse)").matches ||
+      window.innerWidth < 768
+    );
+  }, []);
 
   useEffect(() => {
     if (camera instanceof THREE.PerspectiveCamera) {
@@ -379,6 +378,7 @@ export function ArcadeGameLoop({
       superBurstRef,
       manaLockRef,
       blastRef,
+      spawnRef,
     );
   }, [sectorKey, threatLevel, vfx.api]);
 
@@ -506,6 +506,15 @@ export function ArcadeGameLoop({
         nextIdRef,
       );
 
+      tickEnemySpawns(
+        enemiesRef.current,
+        player,
+        threatLevel,
+        dt,
+        nextIdRef,
+        spawnRef.current,
+      );
+
       resolveCollisions(
         enemiesRef.current,
         projectilesRef.current,
@@ -604,11 +613,14 @@ export function ArcadeGameLoop({
       boostVisual.toFixed(3),
     );
     setBoostAudio(boostVisual);
-    const camBack = CAM_BACK + boostVisual * BOOST_CAM_BACK;
+    const camBack =
+      (mobileCam ? MOBILE_CAM_BACK : CAM_BACK) + boostVisual * BOOST_CAM_BACK;
+    const camHeight = mobileCam ? MOBILE_CAM_HEIGHT : CAM_HEIGHT;
+    const lookAhead = mobileCam ? MOBILE_CAM_LOOK_AHEAD : CAM_LOOK_AHEAD;
 
     cameraTarget.current.set(
       player.position.x + Math.sin(camYawRef.current) * camBack,
-      CAM_HEIGHT + player.pitch * 0.85 - boostVisual * 0.18,
+      camHeight + player.pitch * 0.85 - boostVisual * 0.18,
       player.position.z + Math.cos(camYawRef.current) * camBack,
     );
     shakeRef.current = Math.max(0, shakeRef.current - dt * 2.4);
@@ -634,17 +646,18 @@ export function ArcadeGameLoop({
     const lerpFactor = 1 - Math.exp(-5.2 * dt);
     camera.position.lerp(cameraTarget.current, lerpFactor);
     lookTarget.current.set(
-      player.position.x - Math.sin(player.rotation) * 1.6,
-      0.45 - player.pitch * 0.55,
-      player.position.z - Math.cos(player.rotation) * 1.6,
+      player.position.x - Math.sin(player.rotation) * lookAhead,
+      (mobileCam ? 0.18 : 0.45) - player.pitch * 0.55,
+      player.position.z - Math.cos(player.rotation) * lookAhead,
     );
     camera.lookAt(lookTarget.current);
     camera.rotateZ(-turnRateRef.current * 1.8);
 
     if (persp) {
+      const cruiseFov = mobileCam ? MOBILE_BASE_FOV : BASE_FOV;
       const targetFov = hyperspaceActive
         ? WARP_FOV
-        : THREE.MathUtils.lerp(BASE_FOV, BOOST_FOV, Math.min(1, boostVisual));
+        : THREE.MathUtils.lerp(cruiseFov, BOOST_FOV, Math.min(1, boostVisual));
       persp.fov += (targetFov - persp.fov) * (1 - Math.exp(-5 * dt));
       persp.updateProjectionMatrix();
     }

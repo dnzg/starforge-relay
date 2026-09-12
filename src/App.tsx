@@ -96,6 +96,7 @@ function GameShell() {
         />
         <HUD
           onTouchMove={arcadeInput.setTouchMove}
+          onTouchBoost={arcadeInput.setTouchBoost}
           onTouchFire={arcadeInput.setTouchFire}
           onTouchSuper={arcadeInput.setTouchSuper}
           garageOpen={garageOpen}

@@ -40,7 +40,13 @@ export function useArcadeInput(enabled: boolean) {
     fire: false,
     super: false,
   });
-  const touchRef = useRef({ moveX: 0, moveY: 0, fire: false, super: false });
+  const touchRef = useRef({
+    moveX: 0,
+    moveY: 0,
+    boost: false,
+    fire: false,
+    super: false,
+  });
   const fireLatchRef = useRef(false);
   const superLatchRef = useRef(false);
   const stateRef = useRef<ArcadeInputState>({ ...INITIAL });
@@ -86,7 +92,7 @@ export function useArcadeInput(enabled: boolean) {
     stateRef.current = {
       moveX,
       moveY,
-      boost: k.boost,
+      boost: k.boost || t.boost,
       fire,
       firePressed,
       superPressed,
@@ -226,6 +232,15 @@ export function useArcadeInput(enabled: boolean) {
     [recompute],
   );
 
+  const setTouchBoost = useCallback(
+    (active: boolean) => {
+      unlockGameAudio();
+      touchRef.current.boost = active;
+      recompute();
+    },
+    [recompute],
+  );
+
   const setTouchFire = useCallback(
     (active: boolean) => {
       unlockGameAudio();
@@ -245,5 +260,5 @@ export function useArcadeInput(enabled: boolean) {
 
   const getState = useCallback(() => stateRef.current, []);
 
-  return { getState, setTouchMove, setTouchFire, setTouchSuper };
+  return { getState, setTouchMove, setTouchBoost, setTouchFire, setTouchSuper };
 }

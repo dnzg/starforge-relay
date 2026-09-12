@@ -1,4 +1,4 @@
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
 import { PlayerShipMesh } from "../scene/arcade/PlayerShipMesh";
@@ -12,6 +12,23 @@ import type {
 
 interface GarageOverlayProps {
   onClose: () => void;
+}
+
+function useCompactGarage() {
+  const [compact, setCompact] = useState(
+    () =>
+      typeof window !== "undefined" &&
+      window.matchMedia("(max-width: 860px)").matches,
+  );
+
+  useEffect(() => {
+    const query = window.matchMedia("(max-width: 860px)");
+    const onChange = () => setCompact(query.matches);
+    query.addEventListener("change", onChange);
+    return () => query.removeEventListener("change", onChange);
+  }, []);
+
+  return compact;
 }
 
 function OptionRow<T extends string>({
@@ -45,6 +62,7 @@ function OptionRow<T extends string>({
 }
 
 export function GarageOverlay({ onClose }: GarageOverlayProps) {
+  const compact = useCompactGarage();
   const { loadout, update } = useShipLoadout();
   const [prompt, setPrompt] = useState(loadout.prompt);
   const [busy, setBusy] = useState(false);
@@ -71,7 +89,13 @@ export function GarageOverlay({ onClose }: GarageOverlayProps) {
     <div className="garage-overlay" role="dialog" aria-labelledby="garage-title">
       <div className="garage-stage">
         <Canvas
-          camera={{ position: [1.8, 1.15, 2.3], fov: 42, near: 0.1, far: 40 }}
+          key={compact ? "garage-m" : "garage-d"}
+          camera={{
+            position: compact ? [0.2, 2.35, 5.8] : [3.6, 2.05, 4.8],
+            fov: compact ? 38 : 34,
+            near: 0.1,
+            far: 40,
+          }}
           dpr={[1, 1.5]}
           resize={{ debounce: 0 }}
           gl={{ antialias: true, alpha: false }}
@@ -83,7 +107,7 @@ export function GarageOverlay({ onClose }: GarageOverlayProps) {
           <directionalLight position={[3, 5, 4]} intensity={2.2} color="#fff6e8" />
           <directionalLight position={[-3, 2, -2]} intensity={0.7} color="#de2944" />
           <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.12, 0]}>
-            <circleGeometry args={[2.8, 48]} />
+            <circleGeometry args={[compact ? 3.6 : 3.2, 48]} />
             <meshBasicMaterial color="#2a2a33" />
           </mesh>
           <Suspense fallback={null}>
@@ -92,9 +116,9 @@ export function GarageOverlay({ onClose }: GarageOverlayProps) {
           <OrbitControls
             makeDefault
             enablePan={false}
-            minDistance={1.6}
-            maxDistance={6}
-            target={[0, 0.12, 0]}
+            minDistance={compact ? 4.6 : 3.8}
+            maxDistance={compact ? 9 : 8.5}
+            target={[0, 0.22, 0]}
           />
         </Canvas>
       </div>
@@ -104,43 +128,45 @@ export function GarageOverlay({ onClose }: GarageOverlayProps) {
         <h2 id="garage-title">Your ship</h2>
         <p className="garage-lead">Orbit the hull. Change the silhouette. Ask Fal to paint it.</p>
 
-        <OptionRow<NoseStyle>
-          label="Nose"
-          value={loadout.nose}
-          options={[
-            ["standard", "Standard"],
-            ["needle", "Needle"],
-            ["blunt", "Blunt"],
-          ]}
-          onChange={(nose) => update({ nose })}
-        />
-        <OptionRow<WingStyle>
-          label="Wings"
-          value={loadout.wings}
-          options={[
-            ["swept", "Swept"],
-            ["wide", "Wide"],
-            ["delta", "Delta"],
-          ]}
-          onChange={(wings) => update({ wings })}
-        />
-        <OptionRow<EngineStyle>
-          label="Engines"
-          value={loadout.engines}
-          options={[
-            ["twin", "Twin"],
-            ["triple", "Triple"],
-            ["inline", "Inline"],
-          ]}
-          onChange={(engines) => update({ engines })}
-        />
+        <div className="garage-options">
+          <OptionRow<NoseStyle>
+            label="Nose"
+            value={loadout.nose}
+            options={[
+              ["standard", "Standard"],
+              ["needle", "Needle"],
+              ["blunt", "Blunt"],
+            ]}
+            onChange={(nose) => update({ nose })}
+          />
+          <OptionRow<WingStyle>
+            label="Wings"
+            value={loadout.wings}
+            options={[
+              ["swept", "Swept"],
+              ["wide", "Wide"],
+              ["delta", "Delta"],
+            ]}
+            onChange={(wings) => update({ wings })}
+          />
+          <OptionRow<EngineStyle>
+            label="Engines"
+            value={loadout.engines}
+            options={[
+              ["twin", "Twin"],
+              ["triple", "Triple"],
+              ["inline", "Inline"],
+            ]}
+            onChange={(engines) => update({ engines })}
+          />
+        </div>
 
         <label className="garage-prompt">
           <span>Livery prompt</span>
           <textarea
             value={prompt}
             onChange={(event) => setPrompt(event.target.value)}
-            rows={3}
+            rows={compact ? 2 : 3}
             placeholder="Worn ivory plates, crimson chevron, soot-streaked engines"
           />
         </label>

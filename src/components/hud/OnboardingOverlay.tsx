@@ -101,7 +101,7 @@ export function OnboardingOverlay({
                 <strong>Fly</strong> — W dive, S climb, A left, D right
               </li>
               <li>
-                <strong>Boost</strong> — Hold Shift (uses mana)
+                <strong>Boost</strong> — Hold Shift, or BOOST on touch (uses mana)
               </li>
               <li>
                 <strong>Fire</strong> — 8-shot clip, then a short reload. Hold Space or FIRE

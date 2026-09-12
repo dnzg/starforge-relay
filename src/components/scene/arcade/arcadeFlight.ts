@@ -22,6 +22,10 @@ export const BANK_DAMP = 8;
 export const STRAFE_BLEND = 0.55;
 export const CAM_BACK = 5.5;
 export const CAM_HEIGHT = 3.2;
+export const CAM_LOOK_AHEAD = 1.6;
+export const MOBILE_CAM_BACK = 9.4;
+export const MOBILE_CAM_HEIGHT = 5.8;
+export const MOBILE_CAM_LOOK_AHEAD = 3.6;
 
 export function headingForwardX(yaw: number): number {
   return -Math.sin(yaw);

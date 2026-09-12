@@ -18,6 +18,7 @@ import { ShipAiAvatar } from "./ShipAiAvatar";
 
 interface HUDProps {
   onTouchMove: (x: number, y: number) => void;
+  onTouchBoost: (active: boolean) => void;
   onTouchFire: (active: boolean) => void;
   onTouchSuper: (active: boolean) => void;
   garageOpen: boolean;
@@ -26,6 +27,7 @@ interface HUDProps {
 
 export function HUD({
   onTouchMove,
+  onTouchBoost,
   onTouchFire,
   onTouchSuper,
   garageOpen,
@@ -85,6 +87,14 @@ export function HUD({
       onTouchMove(x, y);
     },
     [dismissHints, onTouchMove],
+  );
+
+  const handleTouchBoost = useCallback(
+    (active: boolean) => {
+      if (active) dismissHints();
+      onTouchBoost(active);
+    },
+    [dismissHints, onTouchBoost],
   );
 
   const handleTouchFire = useCallback(
@@ -224,6 +234,7 @@ export function HUD({
       <TouchControls
         disabled={disabled}
         onMove={handleTouchMove}
+        onBoost={handleTouchBoost}
         onFire={handleTouchFire}
         onSuper={onTouchSuper}
       />
