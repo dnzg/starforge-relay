@@ -161,8 +161,83 @@ h3 {
   animation: hudEnter 420ms var(--ease-out) both;
 }
 
+.hud-brand-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55rem;
+  min-width: 0;
+}
+
 .hud-brand {
   min-width: 0;
+}
+
+.ship-ai-avatar {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  pointer-events: none;
+}
+
+.ship-ai-avatar img {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  object-fit: cover;
+  box-shadow: var(--shadow-border);
+  background: #0b1220;
+}
+
+.ship-ai-avatar figcaption {
+  display: flex;
+  flex-direction: column;
+  gap: 0.05rem;
+  min-width: 0;
+}
+
+.ship-ai-name {
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-accent-hot);
+}
+
+.ship-ai-state {
+  font-size: 0.62rem;
+  color: var(--color-muted);
+}
+
+.ship-ai-avatar.is-speaking img {
+  box-shadow: 0 0 0 2px var(--color-accent-hot), 0 0 16px #de294480;
+  animation: shipAiPulse 1.1s ease-in-out infinite;
+}
+
+.ship-ai-avatar.is-speaking .ship-ai-state {
+  color: var(--color-accent-hot);
+}
+
+@keyframes shipAiPulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 2px var(--color-accent-hot), 0 0 10px #de294466;
+  }
+  50% {
+    box-shadow: 0 0 0 4px var(--color-accent-hot), 0 0 18px #de2944aa;
+  }
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .eyebrow {
@@ -1380,7 +1455,11 @@ h3 {
   }
 
   .hud-chrome-top {
-    justify-content: flex-end;
+    justify-content: space-between;
+  }
+
+  .ship-ai-avatar figcaption {
+    display: none;
   }
 
   .vital-metric {

@@ -22,8 +22,9 @@ Type `scan` or tap the **scan** chip. The transcript and status panel update imm
 | Frontend | Vite + React + TypeScript | Ready |
 | 3D viewport | React Three Fiber + drei + Three.js | Ready |
 | Backend | Convex schema + mutations/queries | Stubbed, ready for `npx convex dev` |
-| Voice | x.ai realtime + `/api/voice/*` + browser speech + text | Wired (graceful fallback) |
+| Voice | x.ai realtime + `/api/voice/*` + browser speech + ship TTS | Wired (graceful fallback) |
 | Sector art | `generateSectorArt(seed)` → Fal `flux/schnell` via `/api/sector-art` | Wired (graceful fallback) |
+| Ship AI | Fal portrait (`/api/ship-avatar`) + Fal/x.ai TTS (`/api/voice/speak`) | Wired (offline fallback) |
 | Worker | Daytona sector pipeline + local CLI | Runnable (`npm run worker:sector`) |
 | Telegram | `window.Telegram.WebApp` bootstrap + browser fallback | Ready |
 
@@ -41,10 +42,18 @@ Type `scan` or tap the **scan** chip. The transcript and status panel update imm
    - `GET /api/voice/status` — whether x.ai is configured
    - `POST /api/voice/token` — short-lived realtime client secret
    - `POST /api/voice/interpret` — map freeform speech/text to bridge commands via ship AI
+   - `POST /api/voice/speak` — TTS for key ship AI lines (Fal `xai/tts/v1` first, then x.ai `/v1/tts`)
 3. Client prefers **x.ai realtime** when configured; otherwise **browser SpeechRecognition**; always falls back to **typed commands**
-4. HUD shows: `Voice: x.ai connected` / `browser speech fallback` / `text commands only`
+4. HUD shows the female ship-computer avatar when the ship AI speaks; TTS plays when `FAL_KEY` or `XAI_API_KEY` is set, otherwise silent text
 
-Without `XAI_API_KEY`, voice mock + browser speech + text still work.
+Without `XAI_API_KEY`, voice mock + browser speech + text still work. Without both keys, the checked-in avatar at `/avatars/ship-ai.jpg` still appears.
+
+### Ship AI avatar + TTS
+
+1. `GET /api/ship-avatar` generates or returns a cached portrait keyed `ship-ai-v1` (Fal `flux/schnell`, same cache pattern as sector art)
+2. HUD mounts the portrait in the top chrome; it glows while a ship line is speaking
+3. `POST /api/voice/speak` with `{ "text": "..." }` caches MP3s under `.cache/ship-tts`
+4. Keys stay server-side (`FAL_KEY`, `XAI_API_KEY`) — never `VITE_`
 
 ### Planet textures (Fal.ai)
 
@@ -85,8 +94,8 @@ See `.env.example`:
 |----------|---------|
 | `VITE_CONVEX_URL` | Convex client URL |
 | `CONVEX_DEPLOY_KEY` | CI / Render Convex deploy |
-| `XAI_API_KEY` | x.ai Voice token + ship AI interpret (server only) |
-| `FAL_KEY` | Fal.ai planet textures (server/worker only) |
+| `XAI_API_KEY` | x.ai Voice token + ship AI interpret + TTS fallback (server only) |
+| `FAL_KEY` | Fal.ai planet textures, ship avatar, and TTS (server/worker only) |
 | `TELEGRAM_BOT_TOKEN` | Telegram bot + Mini App |
 | `VITE_APP_URL` | Public URL for Telegram menu button |
 
@@ -115,8 +124,8 @@ This repo ships a **Node web service** (not static-only) so API keys stay server
 
 | Variable | Required | Purpose |
 |----------|----------|---------|
-| `FAL_KEY` | No | Fal planet textures via `/api/sector-art` |
-| `XAI_API_KEY` | No | x.ai voice token + ship AI interpret |
+| `FAL_KEY` | No | Fal planet textures, ship avatar, and TTS |
+| `XAI_API_KEY` | No | x.ai voice token + ship AI interpret + TTS |
 | `VITE_APP_URL` | No | Public URL for Telegram Mini App menu |
 | `TELEGRAM_BOT_TOKEN` | No | Future bot webhooks |
 | `PORT` | Auto | Render sets this automatically |

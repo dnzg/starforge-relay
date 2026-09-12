@@ -15,6 +15,7 @@ import { ObjectiveMarker } from "./ObjectiveMarker";
 import { SectorProgress } from "./SectorProgress";
 import { ManaMeter } from "./ManaMeter";
 import { HyperspaceOverlay } from "./HyperspaceOverlay";
+import { ShipAiAvatar } from "./ShipAiAvatar";
 
 interface HUDProps {
   onTouchMove: (x: number, y: number) => void;
@@ -122,9 +123,12 @@ export function HUD({
       <HyperspaceOverlay />
 
       <header className="hud-chrome hud-chrome-top">
-        <div className="hud-brand">
-          <p className="eyebrow">Starforge Relay</p>
-          <h1>Sector Combat</h1>
+        <div className="hud-brand-row">
+          <ShipAiAvatar />
+          <div className="hud-brand">
+            <p className="eyebrow">Starforge Relay</p>
+            <h1>Sector Combat</h1>
+          </div>
         </div>
         <StatusPanel compact />
       </header>
