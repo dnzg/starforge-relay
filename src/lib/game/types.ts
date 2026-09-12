@@ -23,6 +23,15 @@ export interface RunState {
   hyperspaceActive: boolean;
   lastCommand?: string;
   jumpsCompleted: number;
+  arcadeScore?: number;
+  sectorKills?: number;
+}
+
+export interface LeaderboardEntry {
+  rank: number;
+  displayName: string;
+  score: number;
+  sectorReached: number;
 }
 
 export interface CommandLogEntry {
@@ -44,6 +53,7 @@ export interface GameClient {
   logs: CommandLogEntry[];
   loading: boolean;
   backend: "local" | "convex";
+  leaderboard: LeaderboardEntry[];
   startRun: (displayName: string, telegramId?: string) => Promise<void>;
   sendCommand: (
     command: string,
@@ -55,4 +65,12 @@ export interface GameClient {
     shipReply: string,
     source?: "text" | "voice",
   ) => Promise<void>;
+}
+
+export interface ExtendedGameClient extends GameClient {
+  subscribe: (listener: () => void) => () => void;
+  setPlanetTextureUrl: (url: string | null | undefined) => void;
+  applyCombatDamage: (damage: number) => void;
+  awardCombatKill: (credits: number, scoreDelta?: number) => void;
+  performSectorJump: () => Promise<CommandResult | null>;
 }

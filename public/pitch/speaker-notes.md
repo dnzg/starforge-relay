@@ -79,7 +79,7 @@
 **Смысл:** партнёры хакатона + как зарабатывать без pay-to-win.
 
 **Скажи:**
-> Built on the partner stack we actually ship: Fal for art, x.ai for voice, Render for the live URL, Telegram for zero-install distribution.
+> Built on the partner stack we actually ship: Convex for live runs and leaderboard, Fal for art, x.ai for voice, Render for the live URL, Telegram for zero-install distribution.
 
 > Commercial angle:
 > - **Money** — Telegram Stars buy taste and time: cosmetics, energy, AI rerolls — not damage  
@@ -96,7 +96,14 @@
 **На слайде для людей:** live + QR, без инструкций спикеру.
 
 **Скажи:**
-> It’s live in Telegram — scan the QR or open the bot. Happy to demo and take questions.
+> It’s live in Telegram — scan the QR or open the bot. Watch for these beats:
+> 1. Fly, kill three hostiles — JUMP unlocks  
+> 2. Gate jump — new sector texture, generated or cached  
+> 3. Ship AI line — avatar / voice  
+> 4. Super attack when mana is full  
+> 5. HUD badge **Convex live** + leaderboard syncing your score  
+
+> Happy to demo and take questions.
 
 **Себе (не на слайде):** fly → 3 kills → JUMP → new texture → voice/super if time.
 
@@ -130,7 +137,7 @@
 | Почему Telegram? | Zero install, Stars payments, viral deep links, huge mobile graph. |
 | Почему не только voice? | Voice is a bonus ship AI — arcade controls are the core loop everyone gets in 10 seconds. |
 | Как не сжечь Fal $? | Generate once per seed, cache forever; rerolls are the paid cosmetic/time loop. |
-| Стек? | React + Three.js / R3F, Fal, x.ai Voice, Render, Telegram WebApp. |
+| Стек? | React + Three.js / R3F, Convex (runs/leaderboard), Fal, x.ai Voice, Render, Telegram WebApp. |
 | Что дальше? | Stars cosmetics + energy, shareable sector challenges, leaderboard, richer AI sectors. |
 | Почему вы? | Full partner stack in one shippable loop — game feel + AI content economics + live Mini App today. |
 

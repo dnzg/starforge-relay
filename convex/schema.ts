@@ -27,6 +27,8 @@ export default defineSchema({
     hyperspaceActive: v.boolean(),
     lastCommand: v.optional(v.string()),
     jumpsCompleted: v.number(),
+    arcadeScore: v.number(),
+    sectorKills: v.number(),
     createdAt: v.number(),
     updatedAt: v.number(),
   })
@@ -47,6 +49,9 @@ export default defineSchema({
     command: v.string(),
     source: v.union(v.literal("text"), v.literal("voice")),
     response: v.string(),
+    speaker: v.optional(
+      v.union(v.literal("captain"), v.literal("ship"), v.literal("system")),
+    ),
     timestamp: v.number(),
   }).index("by_run", ["runId"]),
 
