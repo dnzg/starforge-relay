@@ -54,6 +54,7 @@ const SUPER_SPEED = 42;
 const SUPER_TTL = 1.75;
 const NOVA_RADIUS = 4.8;
 const NOVA_DAMAGE = 3;
+const MANA_LOCK_AFTER_SUPER = 0.85;
 const ENEMY_FIRE_RANGE = 14;
 const ENEMY_FIRE_COOLDOWN = 1.35;
 const CAM_HEIGHT = 6.8;
@@ -104,6 +105,7 @@ function resetGameState(
   explosionsRef: RefObject<ExplosionSlot[]>,
   manaRef: RefObject<number>,
   superBurstRef: RefObject<SuperBurstState>,
+  manaLockRef: RefObject<number>,
 ) {
   if (sectorKeyRef.current === sectorKey) return;
   sectorKeyRef.current = sectorKey;
@@ -120,6 +122,7 @@ function resetGameState(
     slot.active = false;
   }
   manaRef.current = 0;
+  manaLockRef.current = 0;
   superBurstRef.current.active = false;
   resetArcadeUiForSector();
 
@@ -274,6 +277,7 @@ function resolveCollisions(
   explosions: ExplosionSlot[],
   shakeRef: RefObject<number>,
   manaRef: RefObject<number>,
+  manaLockRef: RefObject<number>,
 ): void {
   let surviving = 0;
   for (let ei = 0; ei < enemies.length; ei++) {
@@ -303,7 +307,9 @@ function resolveCollisions(
       shakeRef.current = Math.max(shakeRef.current, 0.55);
       callbacks.onEnemyKilled();
       sectorKillsRef.current += 1;
-      manaRef.current = writeMana(manaRef.current + MANA_PER_KILL);
+      if (manaLockRef.current <= 0) {
+        manaRef.current = writeMana(manaRef.current + MANA_PER_KILL);
+      }
       if (
         sectorKillsRef.current >= KILLS_FOR_JUMP &&
         !jumpGateRef.current.active
@@ -400,6 +406,7 @@ export function ArcadeGameLoop({
   const turnRateRef = useRef(0);
   const jumpGateTriggeredRef = useRef(false);
   const manaRef = useRef(0);
+  const manaLockRef = useRef(0);
   const superBurstRef = useRef<SuperBurstState>({
     active: false,
     x: 0,
@@ -431,6 +438,7 @@ export function ArcadeGameLoop({
       explosionsRef,
       manaRef,
       superBurstRef,
+      manaLockRef,
     );
   }, [sectorKey, threatLevel]);
 
@@ -482,9 +490,13 @@ export function ArcadeGameLoop({
         });
       }
 
-      manaRef.current = writeMana(manaRef.current + MANA_PER_SECOND * dt);
+      manaLockRef.current = Math.max(0, manaLockRef.current - dt);
+      if (manaLockRef.current <= 0) {
+        manaRef.current = writeMana(manaRef.current + MANA_PER_SECOND * dt);
+      }
       if (input.superPressed && manaRef.current >= MANA_MAX) {
         manaRef.current = writeMana(0);
+        manaLockRef.current = MANA_LOCK_AFTER_SUPER;
         noseDirection(player.rotation, _nose);
         projectilesRef.current.push({
           id: nextIdRef.current++,
@@ -545,6 +557,7 @@ export function ArcadeGameLoop({
         explosionsRef.current,
         shakeRef,
         manaRef,
+        manaLockRef,
       );
 
       if (!invulnRef.current) {
