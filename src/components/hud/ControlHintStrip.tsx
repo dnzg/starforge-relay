@@ -10,7 +10,7 @@ export function ControlHintStrip({ visible, onDismiss }: ControlHintStripProps) 
       aria-hidden={!visible}
     >
       <span>
-        W up · S down · A left · D right · Shift boost · Space fire
+        W up · S down · A left · D right · Shift boost · Space fire · F/Q super
       </span>
       <button
         type="button"

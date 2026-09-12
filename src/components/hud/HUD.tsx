@@ -12,11 +12,13 @@ import { OnboardingOverlay } from "./OnboardingOverlay";
 import { ControlHintStrip } from "./ControlHintStrip";
 import { ObjectiveMarker } from "./ObjectiveMarker";
 import { SectorProgress } from "./SectorProgress";
+import { ManaMeter } from "./ManaMeter";
 import { HyperspaceOverlay } from "./HyperspaceOverlay";
 
 interface HUDProps {
   onTouchMove: (x: number, y: number) => void;
   onTouchFire: (active: boolean) => void;
+  onTouchSuper: (active: boolean) => void;
   garageOpen: boolean;
   onGarageOpenChange: (open: boolean) => void;
 }
@@ -24,6 +26,7 @@ interface HUDProps {
 export function HUD({
   onTouchMove,
   onTouchFire,
+  onTouchSuper,
   garageOpen,
   onGarageOpenChange,
 }: HUDProps) {
@@ -100,6 +103,7 @@ export function HUD({
       </header>
 
       <div className="hud-objective-stack">
+        <ManaMeter />
         <SectorProgress />
         <ControlHintStrip
           visible={showHintStrip}
@@ -114,6 +118,7 @@ export function HUD({
         disabled={disabled}
         onMove={onTouchMove}
         onFire={onTouchFire}
+        onSuper={onTouchSuper}
       />
 
       <footer className="hud-chrome hud-chrome-bottom">

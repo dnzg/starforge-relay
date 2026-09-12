@@ -5,7 +5,11 @@ import type { ArcadeInputState } from "../../../hooks/useArcadeInput";
 import {
   arcadeUiRef,
   KILLS_FOR_JUMP,
+  MANA_MAX,
+  MANA_PER_KILL,
+  MANA_PER_SECOND,
   resetArcadeUiForSector,
+  writeMana,
 } from "../../../lib/combat/arcadeUiRef";
 import { PlayerShipMesh } from "./PlayerShipMesh";
 import { CombatMeshes } from "./CombatMeshes";
@@ -25,6 +29,7 @@ import {
   type JumpGateState,
   type PlayerState,
   type Projectile,
+  type SuperBurstState,
 } from "./types";
 
 const PLAYER_SPEED = 9;
@@ -43,6 +48,12 @@ const PLAYER_HARD_RADIUS = 1.75;
 const ENEMY_SEP = 1.95;
 const CONTACT_RADIUS = 2.05;
 const PLAYER_BOLT_HIT = 0.9;
+const SUPER_HIT_RADIUS = 1.9;
+const SUPER_DAMAGE = 8;
+const SUPER_SPEED = 42;
+const SUPER_TTL = 1.75;
+const NOVA_RADIUS = 4.8;
+const NOVA_DAMAGE = 3;
 const ENEMY_FIRE_RANGE = 14;
 const ENEMY_FIRE_COOLDOWN = 1.35;
 const CAM_HEIGHT = 6.8;
@@ -91,6 +102,8 @@ function resetGameState(
   sectorKillsRef: RefObject<number>,
   jumpGateRef: RefObject<JumpGateState>,
   explosionsRef: RefObject<ExplosionSlot[]>,
+  manaRef: RefObject<number>,
+  superBurstRef: RefObject<SuperBurstState>,
 ) {
   if (sectorKeyRef.current === sectorKey) return;
   sectorKeyRef.current = sectorKey;
@@ -106,6 +119,8 @@ function resetGameState(
   for (const slot of explosionsRef.current) {
     slot.active = false;
   }
+  manaRef.current = 0;
+  superBurstRef.current.active = false;
   resetArcadeUiForSector();
 
   const initialCount = Math.min(5, 2 + Math.floor(threatLevel / 2));
@@ -181,6 +196,7 @@ function fireEnemyBolts(
       },
       ttl: PROJECTILE_TTL,
       owner: "enemy",
+      kind: "bolt",
     });
   }
 }
@@ -227,6 +243,28 @@ function updateEnemies(enemies: Enemy[], player: PlayerState, dt: number): void 
   separateEnemies(enemies);
 }
 
+function applyNova(enemies: Enemy[], originX: number, originZ: number): void {
+  const origin = { x: originX, z: originZ };
+  for (let i = 0; i < enemies.length; i++) {
+    const enemy = enemies[i]!;
+    if (dist2(origin, enemy.position) < NOVA_RADIUS) {
+      enemy.hp -= NOVA_DAMAGE;
+    }
+  }
+}
+
+function triggerSuperBurst(
+  burst: SuperBurstState,
+  x: number,
+  z: number,
+): void {
+  burst.active = true;
+  burst.x = x;
+  burst.z = z;
+  burst.age = 0;
+  burst.duration = 0.5;
+}
+
 function resolveCollisions(
   enemies: Enemy[],
   projectiles: Projectile[],
@@ -235,6 +273,7 @@ function resolveCollisions(
   jumpGateRef: RefObject<JumpGateState>,
   explosions: ExplosionSlot[],
   shakeRef: RefObject<number>,
+  manaRef: RefObject<number>,
 ): void {
   let surviving = 0;
   for (let ei = 0; ei < enemies.length; ei++) {
@@ -244,14 +283,18 @@ function resolveCollisions(
     let pw = 0;
     for (let pi = 0; pi < projectiles.length; pi++) {
       const projectile = projectiles[pi]!;
-      if (
-        projectile.owner === "player" &&
-        dist2(projectile.position, enemy.position) < 0.85
-      ) {
-        hp -= 1;
-      } else {
-        projectiles[pw++] = projectile;
+      if (projectile.owner === "player") {
+        const radius =
+          projectile.kind === "super" ? SUPER_HIT_RADIUS : 0.85;
+        if (dist2(projectile.position, enemy.position) < radius) {
+          hp -= projectile.kind === "super" ? SUPER_DAMAGE : 1;
+          if (projectile.kind === "super") {
+            projectiles[pw++] = projectile;
+          }
+          continue;
+        }
       }
+      projectiles[pw++] = projectile;
     }
     projectiles.length = pw;
 
@@ -260,6 +303,7 @@ function resolveCollisions(
       shakeRef.current = Math.max(shakeRef.current, 0.55);
       callbacks.onEnemyKilled();
       sectorKillsRef.current += 1;
+      manaRef.current = writeMana(manaRef.current + MANA_PER_KILL);
       if (
         sectorKillsRef.current >= KILLS_FOR_JUMP &&
         !jumpGateRef.current.active
@@ -355,6 +399,14 @@ export function ArcadeGameLoop({
   const shakeRef = useRef(0);
   const turnRateRef = useRef(0);
   const jumpGateTriggeredRef = useRef(false);
+  const manaRef = useRef(0);
+  const superBurstRef = useRef<SuperBurstState>({
+    active: false,
+    x: 0,
+    z: 0,
+    age: 0,
+    duration: 0.5,
+  });
 
   useEffect(() => {
     if (camera instanceof THREE.PerspectiveCamera) {
@@ -377,6 +429,8 @@ export function ArcadeGameLoop({
       sectorKillsRef,
       jumpGateRef,
       explosionsRef,
+      manaRef,
+      superBurstRef,
     );
   }, [sectorKey, threatLevel]);
 
@@ -424,7 +478,39 @@ export function ArcadeGameLoop({
           },
           ttl: PROJECTILE_TTL,
           owner: "player",
+          kind: "bolt",
         });
+      }
+
+      manaRef.current = writeMana(manaRef.current + MANA_PER_SECOND * dt);
+      if (input.superPressed && manaRef.current >= MANA_MAX) {
+        manaRef.current = writeMana(0);
+        noseDirection(player.rotation, _nose);
+        projectilesRef.current.push({
+          id: nextIdRef.current++,
+          position: {
+            x: player.position.x + _nose.x * 1.05,
+            z: player.position.z + _nose.z * 1.05,
+          },
+          velocity: {
+            x: _nose.x * SUPER_SPEED,
+            z: _nose.z * SUPER_SPEED,
+          },
+          ttl: SUPER_TTL,
+          owner: "player",
+          kind: "super",
+        });
+        applyNova(
+          enemiesRef.current,
+          player.position.x,
+          player.position.z,
+        );
+        triggerSuperBurst(
+          superBurstRef.current,
+          player.position.x,
+          player.position.z,
+        );
+        shakeRef.current = Math.max(shakeRef.current, 0.95);
       }
 
       updateProjectiles(projectilesRef.current, dt);
@@ -458,6 +544,7 @@ export function ArcadeGameLoop({
         jumpGateRef,
         explosionsRef.current,
         shakeRef,
+        manaRef,
       );
 
       if (!invulnRef.current) {
@@ -566,7 +653,11 @@ export function ArcadeGameLoop({
   return (
     <>
       <PlayerShipMesh playerRef={playerRef} invulnRef={invulnRef} />
-      <CombatMeshes enemiesRef={enemiesRef} projectilesRef={projectilesRef} />
+      <CombatMeshes
+        enemiesRef={enemiesRef}
+        projectilesRef={projectilesRef}
+        superBurstRef={superBurstRef}
+      />
       <ExplosionBursts explosionsRef={explosionsRef} />
       <JumpGateMesh gateRef={jumpGateRef} />
     </>

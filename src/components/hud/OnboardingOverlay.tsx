@@ -101,6 +101,9 @@ export function OnboardingOverlay({
                 <strong>Fire</strong> — Hold Space, click the sector, or FIRE
               </li>
               <li>
+                <strong>Super</strong> — F or Q when mana is full (SUPER on touch)
+              </li>
+              <li>
                 <strong>Talk</strong> — Type or speak to the ship AI
               </li>
             </ul>

@@ -47,6 +47,7 @@ function GameShell() {
         <HUD
           onTouchMove={arcadeInput.setTouchMove}
           onTouchFire={arcadeInput.setTouchFire}
+          onTouchSuper={arcadeInput.setTouchSuper}
           garageOpen={garageOpen}
           onGarageOpenChange={setGarageOpen}
         />
