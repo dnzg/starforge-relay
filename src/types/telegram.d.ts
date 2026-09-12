@@ -31,6 +31,8 @@ export interface TelegramWebApp {
   close: () => void;
   enableClosingConfirmation: () => void;
   disableClosingConfirmation: () => void;
+  disableVerticalSwipes?: () => void;
+  enableVerticalSwipes?: () => void;
   setHeaderColor: (color: string) => void;
   setBackgroundColor: (color: string) => void;
   HapticFeedback: {
