@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
+import { Id } from "./_generated/dataModel";
 import {
   parseCommand,
   resolveCommand,
@@ -32,7 +33,7 @@ export const startRun = mutation({
     telegramId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    let playerId = null as null | Awaited<ReturnType<typeof ctx.db.insert>>;
+    let playerId: Id<"players"> | null = null;
 
     if (args.telegramId) {
       const existing = await ctx.db
