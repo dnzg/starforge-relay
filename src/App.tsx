@@ -3,7 +3,10 @@ import { ArcadeScene } from "./components/scene/ArcadeScene";
 import { HUD } from "./components/hud/HUD";
 import { GarageOverlay } from "./components/hud/GarageOverlay";
 import { GameOverOverlay } from "./components/hud/GameOverOverlay";
-import { useTelegramWebApp } from "./hooks/useTelegramWebApp";
+import {
+  disableTelegramVerticalSwipes,
+  useTelegramWebApp,
+} from "./hooks/useTelegramWebApp";
 import { useArcadeInput } from "./hooks/useArcadeInput";
 import { GameProvider, useGame } from "./providers/GameProvider";
 import { installGameAudioUnlock } from "./lib/audio/gameAudio";
@@ -60,6 +63,12 @@ function GameShell() {
     }
     return () => webApp.disableClosingConfirmation();
   }, [webApp, run?.status, garageOpen]);
+
+  useEffect(() => {
+    if (webApp && combatEnabled) {
+      disableTelegramVerticalSwipes(webApp);
+    }
+  }, [webApp, combatEnabled]);
 
   return (
     <div className="app-shell" onContextMenu={(event) => event.preventDefault()}>

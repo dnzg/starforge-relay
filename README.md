@@ -163,6 +163,8 @@ Copy the `https://*.trycloudflare.com` URL into BotFather as the Mini App URL. V
 
 Browser fallback works for judges without Telegram — a banner explains preview mode.
 
+On launch, the app calls `Telegram.WebApp.disableVerticalSwipes()` (when supported) so swipe-down does not accidentally dismiss the Mini App during arcade play. Older Telegram clients without this API are unaffected.
+
 ## Project structure
 
 ```
