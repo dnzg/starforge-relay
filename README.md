@@ -139,9 +139,27 @@ The service serves the Vite build from `dist/` and exposes `/api/*` on the same 
 
 ### Telegram Mini App
 
-1. Create a bot via [@BotFather](https://t.me/BotFather)
-2. Set Mini App URL to your Render static URL
-3. Add `TELEGRAM_BOT_TOKEN` when bot webhooks are implemented
+**BotFather checklist**
+
+1. Create a bot: [@BotFather](https://t.me/BotFather) → `/newbot`
+2. Attach the Mini App: `/newapp` (or **Bot Settings → Menu Button**) and set the URL to your public HTTPS app URL (`VITE_APP_URL`)
+3. Local env (`.env.local`, never commit):
+   ```env
+   TELEGRAM_BOT_TOKEN=123456:ABC...
+   VITE_APP_URL=https://your-tunnel-or-render-url
+   ```
+4. Render dashboard: set the same `TELEGRAM_BOT_TOKEN` and `VITE_APP_URL` on the web service
+5. Verify: `GET /api/telegram/status` → `{ "botConfigured": true }` (token value is never exposed)
+
+**Local tunnel test (Mini App requires HTTPS)**
+
+```bash
+npm run dev
+# In another terminal:
+cloudflared tunnel --url http://127.0.0.1:43123
+```
+
+Copy the `https://*.trycloudflare.com` URL into BotFather as the Mini App URL. Vite proxies `/api` to the API on port 43124, so one tunnel URL serves both UI and API.
 
 Browser fallback works for judges without Telegram — a banner explains preview mode.
 
@@ -181,7 +199,7 @@ render.yaml       Render blueprint
 ### Should (same-day build)
 
 - [ ] Wire Convex live (`npx convex dev`, replace local client)
-- [ ] Telegram Mini App menu + theme sync polish
+- [x] Telegram Mini App menu + theme sync polish
 - [x] x.ai Voice realtime command stream + interpret fallback
 - [ ] Leaderboard panel from `getLeaderboard`
 

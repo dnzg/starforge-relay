@@ -16,6 +16,7 @@ import {
   createCombatVfxState,
   type CombatVfxApi,
 } from "../../../lib/combat/combatVfx";
+import { telegramHaptic } from "../../../lib/telegram/haptics";
 import { PlayerShipMesh } from "./PlayerShipMesh";
 import { BoostStreaks } from "./BoostStreaks";
 import { CombatMeshes } from "./CombatMeshes";
@@ -216,6 +217,7 @@ function resolveCollisions(
       playSfx("explosion", { pan: sfxPan(enemy.position.x, playerX) });
       shakeRef.current = Math.max(shakeRef.current, 0.55);
       callbacks.onEnemyKilled();
+      telegramHaptic("medium");
       sectorKillsRef.current += 1;
       if (manaLockRef.current <= 0) {
         manaRef.current = writeMana(manaRef.current + MANA_PER_KILL);
@@ -445,6 +447,7 @@ export function ArcadeGameLoop({
         });
         vfx.api.spawnMuzzle(muzzleX, muzzleZ, _nose.x, _nose.z);
         playSfx("player_laser");
+        telegramHaptic("light");
       }
 
       manaLockRef.current = Math.max(0, manaLockRef.current - dt);

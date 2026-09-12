@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { TELEGRAM_THEME_BG } from "../lib/telegram/haptics";
 import type { TelegramWebApp, TelegramWebAppUser } from "../types/telegram";
 
 export interface TelegramContext {
@@ -17,8 +18,8 @@ export function useTelegramWebApp(): TelegramContext {
     if (webApp) {
       webApp.ready();
       webApp.expand();
-      webApp.setHeaderColor("#0a0e1a");
-      webApp.setBackgroundColor("#0a0e1a");
+      webApp.setHeaderColor(TELEGRAM_THEME_BG);
+      webApp.setBackgroundColor(TELEGRAM_THEME_BG);
     }
     setReady(true);
   }, []);
