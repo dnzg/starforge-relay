@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useGame } from "../../providers/GameProvider";
 import {
   FALLBACK_SHIP_AVATAR_URL,
@@ -7,7 +7,8 @@ import {
 import { fetchVoiceStatus } from "./voiceApi";
 import { playShipTts, stopShipTts } from "./shipTts";
 
-let lastSpokenTimestamp = 0;
+let spokenLogCount = 0;
+let speakJobs = 0;
 
 export interface ShipAiSpeakerState {
   avatarUrl: string;
@@ -24,8 +25,10 @@ export function useShipAiSpeaker(): ShipAiSpeakerState {
   const [speaking, setSpeaking] = useState(false);
   const [line, setLine] = useState<string | null>(null);
   const [ttsAvailable, setTtsAvailable] = useState(false);
+  const mountedRef = useRef(true);
 
   useEffect(() => {
+    mountedRef.current = true;
     void fetchShipAvatar().then((avatar) => {
       setAvatarUrl(avatar.imageUrl || FALLBACK_SHIP_AVATAR_URL);
       setAvatarFallback(avatar.fallback);
@@ -33,24 +36,39 @@ export function useShipAiSpeaker(): ShipAiSpeakerState {
     void fetchVoiceStatus().then((status) => {
       setTtsAvailable(status.ttsConfigured);
     });
-    return () => stopShipTts();
+    return () => {
+      mountedRef.current = false;
+      stopShipTts();
+    };
   }, []);
 
   useEffect(() => {
-    const latest = logs[logs.length - 1];
-    if (!latest?.response?.trim()) return;
-    if (latest.timestamp === lastSpokenTimestamp) return;
-    lastSpokenTimestamp = latest.timestamp;
+    if (logs.length < spokenLogCount) {
+      spokenLogCount = 0;
+    }
+    if (logs.length <= spokenLogCount) return;
 
-    const spoken = latest.response.replace(/\s+/g, " ").trim();
-    setLine(spoken);
-    setSpeaking(true);
+    const pending = logs.slice(spokenLogCount);
+    spokenLogCount = logs.length;
 
-    void playShipTts(spoken).finally(() => {
-      if (lastSpokenTimestamp === latest.timestamp) {
-        setSpeaking(false);
-      }
-    });
+    for (const entry of pending) {
+      const spoken = entry.response?.replace(/\s+/g, " ").trim();
+      if (!spoken) continue;
+
+      speakJobs += 1;
+      if (mountedRef.current) setSpeaking(true);
+
+      void playShipTts(spoken, {
+        onStart: (text) => {
+          if (mountedRef.current) setLine(text);
+        },
+      }).finally(() => {
+        speakJobs = Math.max(0, speakJobs - 1);
+        if (speakJobs === 0 && mountedRef.current) {
+          setSpeaking(false);
+        }
+      });
+    }
   }, [logs]);
 
   return {

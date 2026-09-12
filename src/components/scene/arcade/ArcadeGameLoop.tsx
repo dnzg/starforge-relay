@@ -10,8 +10,15 @@ import {
   MANA_PER_KILL,
   MANA_PER_SECOND,
   resetArcadeUiForSector,
+  writeBlastUi,
   writeMana,
 } from "../../../lib/combat/arcadeUiRef";
+import {
+  createBlastWeapon,
+  tickBlastWeapon,
+  tryFireBlast,
+  type BlastWeaponState,
+} from "../../../lib/combat/blastWeapon";
 import {
   createCombatVfxState,
   type CombatVfxApi,
@@ -56,7 +63,6 @@ import { playSfx, setBoostAudio, sfxPan } from "../../../lib/audio/gameAudio";
 
 const PLAYER_SPEED = 9;
 const BOOST_MULT = 1.75;
-const FIRE_COOLDOWN = 0.16;
 const PROJECTILE_SPEED = 28;
 const PROJECTILE_TTL = 2.2;
 const ENEMY_CONTACT_DAMAGE = 12;
@@ -101,6 +107,7 @@ function resetGameState(
   manaRef: RefObject<number>,
   superBurstRef: RefObject<SuperBurstState>,
   manaLockRef: RefObject<number>,
+  blastRef: RefObject<BlastWeaponState>,
 ) {
   if (sectorKeyRef.current === sectorKey) return;
   sectorKeyRef.current = sectorKey;
@@ -119,6 +126,8 @@ function resetGameState(
   vfxApi.reset();
   manaRef.current = 0;
   manaLockRef.current = 0;
+  blastRef.current = createBlastWeapon();
+  writeBlastUi(blastRef.current);
   superBurstRef.current.active = false;
   resetArcadeUiForSector();
 
@@ -303,7 +312,7 @@ export function ArcadeGameLoop({
   const projectilesRef = useRef<Projectile[]>([]);
   const explosionsRef = useRef<ExplosionSlot[]>(createExplosionPool());
   const nextIdRef = useRef(1);
-  const fireCooldownRef = useRef(0);
+  const blastRef = useRef(createBlastWeapon());
   const sectorKeyRef = useRef("");
   const invulnRef = useRef(false);
   const sectorKillsRef = useRef(0);
@@ -369,6 +378,7 @@ export function ArcadeGameLoop({
       manaRef,
       superBurstRef,
       manaLockRef,
+      blastRef,
     );
   }, [sectorKey, threatLevel, vfx.api]);
 
@@ -421,13 +431,12 @@ export function ArcadeGameLoop({
         0.35,
       );
 
-      fireCooldownRef.current = Math.max(0, fireCooldownRef.current - dt);
+      tickBlastWeapon(blastRef.current, dt);
       if (
         input.fire &&
-        fireCooldownRef.current <= 0 &&
-        projectilesRef.current.length < MAX_PROJECTILES
+        projectilesRef.current.length < MAX_PROJECTILES &&
+        tryFireBlast(blastRef.current)
       ) {
-        fireCooldownRef.current = FIRE_COOLDOWN;
         noseDirection(player.rotation, _nose);
         const muzzleX = player.position.x + _nose.x * 0.95;
         const muzzleZ = player.position.z + _nose.z * 0.95;
@@ -449,6 +458,7 @@ export function ArcadeGameLoop({
         playSfx("player_laser");
         telegramHaptic("light");
       }
+      writeBlastUi(blastRef.current);
 
       manaLockRef.current = Math.max(0, manaLockRef.current - dt);
       if (manaLockRef.current <= 0 && !canBoost) {

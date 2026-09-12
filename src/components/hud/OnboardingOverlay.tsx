@@ -104,7 +104,7 @@ export function OnboardingOverlay({
                 <strong>Boost</strong> — Hold Shift (uses mana)
               </li>
               <li>
-                <strong>Fire</strong> — Hold Space, click the sector, or FIRE
+                <strong>Fire</strong> — 8-shot clip, then a short reload. Hold Space or FIRE
               </li>
               <li>
                 <strong>Super</strong> — F or Q when mana is full (SUPER on touch)

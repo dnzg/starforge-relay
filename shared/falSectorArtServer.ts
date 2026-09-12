@@ -147,10 +147,13 @@ export async function generateFalSectorArtServer(
 }
 
 export function buildShipLiveryPrompt(userPrompt: string): string {
+  const brief = userPrompt.trim();
   return [
-    "Sci-fi fighter hull livery texture, tiled metal panels,",
-    userPrompt.trim(),
-    "top-down paintable albedo, no cockpit glass, no text, no logos, original IP",
+    `${brief} seamless tileable 2D hull paint texture,`,
+    "full-bleed square albedo, the described colors cover every pixel,",
+    "repeating aircraft enamel with faint panel lines only,",
+    "flat even lighting, no 3D object, no vehicle, no studio backdrop,",
+    "no vignette, no empty margins, no text, no logos, original IP",
   ].join(" ");
 }
 

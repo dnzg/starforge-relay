@@ -7,6 +7,7 @@ import type { WingStyle } from "../../../lib/ship/shipLoadout";
 import { arcadeUiRef } from "../../../lib/combat/arcadeUiRef";
 import {
   applyHullMaps,
+  applyShipLiveryMap,
   createCanopyTexture,
   createPlayerHullTextures,
   createPlayerWingTextures,
@@ -176,16 +177,9 @@ export function PlayerShipMesh({
   useEffect(() => {
     if (!loadout.textureUrl) return;
     const loader = new THREE.TextureLoader();
+    loader.crossOrigin = "anonymous";
     const texture = loader.load(loadout.textureUrl, (map) => {
-      map.colorSpace = THREE.SRGBColorSpace;
-      map.wrapS = THREE.RepeatWrapping;
-      map.wrapT = THREE.RepeatWrapping;
-      map.repeat.set(1.4, 1.4);
-      map.anisotropy = 4;
-      materials.hull.map = map;
-      materials.wing.map = map;
-      materials.hull.needsUpdate = true;
-      materials.wing.needsUpdate = true;
+      applyShipLiveryMap(materials, map);
     });
     return () => {
       texture.dispose();

@@ -259,3 +259,28 @@ export function applyHullMaps(
   material.emissiveMap = maps.emissiveMap;
   material.needsUpdate = true;
 }
+
+export function applyShipLiveryMap(
+  materials: { hull: THREE.MeshStandardMaterial; wing: THREE.MeshStandardMaterial },
+  map: THREE.Texture,
+): void {
+  map.colorSpace = THREE.SRGBColorSpace;
+  map.wrapS = THREE.RepeatWrapping;
+  map.wrapT = THREE.RepeatWrapping;
+  map.repeat.set(2, 2);
+  map.anisotropy = 4;
+  map.needsUpdate = true;
+
+  for (const material of [materials.hull, materials.wing]) {
+    material.map = map;
+    material.color.set("#ffffff");
+    material.metalness = 0.18;
+    material.roughness = 0.44;
+    material.emissive.set("#000000");
+    material.emissiveIntensity = 0;
+    material.roughnessMap = null;
+    material.metalnessMap = null;
+    material.emissiveMap = null;
+    material.needsUpdate = true;
+  }
+}

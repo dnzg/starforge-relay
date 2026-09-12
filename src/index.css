@@ -374,6 +374,18 @@ h3 {
   background: linear-gradient(90deg, #22d3ee, #818cf8, #e879f9);
 }
 
+.mk-bar-fill.is-ammo {
+  background: linear-gradient(90deg, #be123c, #fb7185);
+}
+
+.mk-bar-fill.is-ammo.is-reload {
+  background: linear-gradient(90deg, #64748b, #e2e8f0);
+}
+
+.mk-ammo.is-reloading .mk-bar-meta strong {
+  color: #cbd5e1;
+}
+
 .mk-bar-mana.is-ready .mk-bar-track {
   box-shadow: inset 0 0 0 1px #e879f9, 0 0 0 1px #22d3ee66, 0 0 14px #22d3ee55;
 }
@@ -776,6 +788,42 @@ h3 {
   backdrop-filter: blur(16px);
   box-shadow: var(--shadow-border);
   animation: hudEnter 420ms 120ms var(--ease-out) both;
+  transition:
+    grid-template-columns 220ms var(--ease-out),
+    box-shadow 220ms var(--ease-out);
+}
+
+.hud-chrome-bottom.is-voice-live {
+  grid-template-columns: 52px minmax(0, 1fr) auto;
+  box-shadow:
+    var(--shadow-border),
+    0 0 0 1px #7dd3fc33,
+    0 10px 28px #0e749033;
+}
+
+.voice-caption {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.12rem;
+  padding: 0.4rem 0.7rem 0.2rem;
+  pointer-events: none;
+}
+
+.voice-caption-status {
+  margin: 0;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: #7dd3fc;
+}
+
+.voice-caption-text {
+  margin: 0;
+  font-size: 0.92rem;
+  line-height: 1.35;
+  color: var(--color-text);
+  user-select: none;
 }
 
 .command-input-wrap {
@@ -909,7 +957,19 @@ h3 {
   box-shadow: var(--shadow-border);
 }
 
-.mic-button.mic-active,
+.mic-button.is-live {
+  width: 52px;
+  height: 52px;
+  background: linear-gradient(160deg, #155e75, #0e7490);
+  color: #ecfeff;
+  box-shadow: inset 0 1px 0 #ffffff33, 0 0 0 2px #67e8f955, 0 8px 22px #0e74904d;
+}
+
+.mic-button.is-working {
+  background: linear-gradient(160deg, #164e63, #155e75);
+  box-shadow: inset 0 1px 0 #ffffff22, 0 0 0 2px #67e8f933;
+}
+
 .log-toggle.is-open {
   background: linear-gradient(160deg, #e93c56, #ba1737);
   color: var(--color-on-accent);
@@ -966,40 +1026,53 @@ h3 {
   color: var(--color-text);
 }
 
-.mic-icon {
-  position: relative;
-  width: 0.9rem;
-  height: 0.9rem;
-}
-
-.mic-icon-idle,
-.mic-icon-live {
+.mic-wave {
   display: flex;
   align-items: center;
   justify-content: center;
-  transition-property: opacity, filter, transform;
-  transition-duration: 300ms;
-  transition-timing-function: var(--ease-out);
+  gap: 3px;
+  width: 1.1rem;
+  height: 1rem;
 }
 
-.mic-icon-live {
-  position: absolute;
-  inset: 0;
-  transform: scale(0.25);
-  opacity: 0;
-  filter: blur(4px);
+.mic-wave i {
+  display: block;
+  width: 3px;
+  height: 6px;
+  border-radius: 99px;
+  background: currentColor;
+  transform-origin: center;
 }
 
-.mic-icon.is-active .mic-icon-idle {
-  transform: scale(0.25);
-  opacity: 0;
-  filter: blur(4px);
+.mic-wave.is-live i {
+  animation: micWave 720ms ease-in-out infinite;
 }
 
-.mic-icon.is-active .mic-icon-live {
-  transform: scale(1);
-  opacity: 1;
-  filter: blur(0);
+.mic-wave.is-live i:nth-child(2) {
+  animation-delay: 120ms;
+  height: 10px;
+}
+
+.mic-wave.is-live i:nth-child(3) {
+  animation-delay: 240ms;
+}
+
+@keyframes micWave {
+  0%,
+  100% {
+    transform: scaleY(0.55);
+    opacity: 0.7;
+  }
+  50% {
+    transform: scaleY(1.35);
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mic-wave.is-live i {
+    animation: none;
+  }
 }
 
 .mic-error {
@@ -1098,9 +1171,31 @@ h3 {
   letter-spacing: 0.06em;
   box-shadow: inset 0 1px 0 #ffffff26, 0 8px 24px #de294440;
   touch-action: none;
-  transition-property: transform, box-shadow;
+  transition-property: transform, box-shadow, background, color;
   transition-duration: 150ms;
   transition-timing-function: ease-out;
+  display: grid;
+  place-items: center;
+  line-height: 1.05;
+}
+
+.touch-fire span,
+.touch-fire small {
+  display: block;
+}
+
+.touch-fire small {
+  font-size: 0.68rem;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.88;
+}
+
+.touch-fire.is-reloading {
+  background: linear-gradient(160deg, #64748b, #334155);
+  box-shadow: inset 0 1px 0 #ffffff14, 0 0 0 3px #94a3b855;
+  background-image:
+    conic-gradient(#e2e8f0 calc(var(--reload, 0) * 360deg), transparent 0),
+    linear-gradient(160deg, #64748b, #334155);
 }
 
 .touch-fire:active:not(:disabled) {
@@ -1518,6 +1613,10 @@ h3 {
     grid-template-columns: 44px auto;
     left: 50%;
     bottom: max(0.85rem, calc(var(--space-safe-bottom) + 0.35rem));
+  }
+
+  .hud-chrome-bottom.is-voice-live {
+    grid-template-columns: 52px auto;
   }
 
   .garage-panel {

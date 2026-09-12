@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import { arcadeUiRef } from "../../lib/combat/arcadeUiRef";
 
 interface TouchControlsProps {
@@ -17,11 +17,17 @@ export function TouchControls({
   const dpadRef = useRef<HTMLDivElement>(null);
   const activePointerRef = useRef<number | null>(null);
   const [superReady, setSuperReady] = useState(false);
+  const [ammo, setAmmo] = useState(arcadeUiRef.ammo);
+  const [reloading, setReloading] = useState(false);
+  const [reloadProgress, setReloadProgress] = useState(1);
 
   useEffect(() => {
     const interval = window.setInterval(() => {
       setSuperReady(arcadeUiRef.manaReady);
-    }, 100);
+      setAmmo(arcadeUiRef.ammo);
+      setReloading(arcadeUiRef.reloading);
+      setReloadProgress(arcadeUiRef.reloadProgress);
+    }, 80);
     return () => window.clearInterval(interval);
   }, []);
 
@@ -88,14 +94,16 @@ export function TouchControls({
         </button>
         <button
           type="button"
-          className="touch-fire"
+          className={`touch-fire ${reloading ? "is-reloading" : ""}`}
           disabled={disabled}
+          style={{ "--reload": String(reloadProgress) } as CSSProperties}
           onPointerDown={() => onFire(true)}
           onPointerUp={() => onFire(false)}
           onPointerLeave={() => onFire(false)}
           onPointerCancel={() => onFire(false)}
         >
-          FIRE
+          <span>{reloading ? "WAIT" : "FIRE"}</span>
+          <small>{reloading ? `${Math.round(reloadProgress * 100)}%` : ammo}</small>
         </button>
       </div>
     </div>

@@ -1,3 +1,10 @@
+import {
+  BLAST_CLIP,
+  blastHud,
+  createBlastWeapon,
+  type BlastWeaponState,
+} from "./blastWeapon";
+
 export type ObjectiveTarget = "enemy" | "gate" | "none";
 export type RadarBlipKind = "enemy" | "gate";
 
@@ -32,6 +39,10 @@ export interface ArcadeUiSnapshot {
   mana: number;
   manaReady: boolean;
   hull: number;
+  ammo: number;
+  ammoMax: number;
+  reloading: boolean;
+  reloadProgress: number;
   blips: RadarBlip[];
   blipCount: number;
   worldTimeScale: number;
@@ -60,6 +71,10 @@ export const arcadeUiRef: ArcadeUiSnapshot = {
   mana: 0,
   manaReady: false,
   hull: 100,
+  ammo: BLAST_CLIP,
+  ammoMax: BLAST_CLIP,
+  reloading: false,
+  reloadProgress: 1,
   blips: createRadarBlips(),
   blipCount: 0,
   worldTimeScale: 1,
@@ -83,6 +98,14 @@ export function writeHull(value: number): number {
   return hull;
 }
 
+export function writeBlastUi(weapon: BlastWeaponState): void {
+  const hud = blastHud(weapon);
+  arcadeUiRef.ammo = hud.ammo;
+  arcadeUiRef.ammoMax = hud.ammoMax;
+  arcadeUiRef.reloading = hud.reloading;
+  arcadeUiRef.reloadProgress = hud.reloadProgress;
+}
+
 export function setVoiceWorldSlow(active: boolean): void {
   arcadeUiRef.worldTimeScaleTarget = active ? VOICE_TIME_SCALE : 1;
 }
@@ -95,4 +118,5 @@ export function resetArcadeUiForSector() {
   arcadeUiRef.worldTimeScale = 1;
   arcadeUiRef.worldTimeScaleTarget = 1;
   writeMana(0);
+  writeBlastUi(createBlastWeapon());
 }

@@ -18,6 +18,7 @@ const MIN_SPAWN_SEPARATION = 5.2;
 const SEPARATION_PADDING = 1.85;
 const SEPARATION_STRENGTH = 6.8;
 const MAX_SPEED_MULT = 1.4;
+const PLAYER_STANDOFF_PADDING = 3.15;
 const SPAWN_CANDIDATES = 14;
 const ENEMY_LIMIT = SECTOR_BOUNDS + 5;
 
@@ -41,11 +42,11 @@ const ARCHETYPES: Record<EnemyKind, ArchetypeConfig> = {
     hp: (threat) => 3 + Math.floor(threat / 4),
     speed: (threat) => 4.15 + threat * 0.16,
     radius: 0.55,
-    preferredRange: 1.35,
+    preferredRange: 5.8,
     spawnRadiusMin: 12,
     spawnRadiusMax: 16.5,
-    fireInterval: 0,
-    shotSpeed: 0,
+    fireInterval: 1.05,
+    shotSpeed: 15,
   },
   gunship: {
     kind: "gunship",
@@ -79,6 +80,31 @@ export function enemyHitRadius(enemy: Enemy): number {
 
 export function enemyContactRadius(enemy: Enemy): number {
   return enemy.radius + 0.5;
+}
+
+export function enemyStandoffDistance(enemy: Enemy): number {
+  return enemy.radius + PLAYER_STANDOFF_PADDING;
+}
+
+function applyPlayerStandoff(
+  vx: number,
+  vz: number,
+  dist: number,
+  nx: number,
+  nz: number,
+  standoff: number,
+  speed: number,
+): { vx: number; vz: number } {
+  if (dist >= standoff) return { vx, vz };
+  const inbound = vx * nx + vz * nz;
+  if (inbound > 0) {
+    vx -= nx * inbound;
+    vz -= nz * inbound;
+  }
+  const panic = 1 + (standoff - dist) / standoff;
+  vx -= nx * speed * panic;
+  vz -= nz * speed * panic;
+  return { vx, vz };
 }
 
 const sepScratch = { x: 0, z: 0 };
@@ -277,15 +303,18 @@ export function updateEnemies(
     let vz = 0;
 
     if (enemy.kind === "interceptor") {
-      const lane = 1.45 + (enemy.id % 3) * 0.4;
-      const aimX = player.position.x + -nz * enemy.orbitDir * lane;
-      const aimZ = player.position.z + nx * enemy.orbitDir * lane;
-      const adx = aimX - enemy.position.x;
-      const adz = aimZ - enemy.position.z;
-      const adist = Math.max(0.001, Math.hypot(adx, adz));
-      const weave = Math.sin(elapsed * 4.1 + enemy.strafePhase) * 0.22;
-      vx = (adx / adist) * enemy.speed + -nz * weave * enemy.speed;
-      vz = (adz / adist) * enemy.speed + nx * weave * enemy.speed;
+      const band = enemy.preferredRange;
+      const weave = Math.sin(elapsed * 4.1 + enemy.strafePhase) * 0.32;
+      if (dist < band - 0.9) {
+        vx = -nx * enemy.speed + -nz * enemy.orbitDir * enemy.speed * 0.6;
+        vz = -nz * enemy.speed + nx * enemy.orbitDir * enemy.speed * 0.6;
+      } else if (dist > band + 1.4) {
+        vx = nx * enemy.speed * 0.8 + -nz * enemy.orbitDir * enemy.speed * 0.4;
+        vz = nz * enemy.speed * 0.8 + nx * enemy.orbitDir * enemy.speed * 0.4;
+      } else {
+        vx = -nz * enemy.orbitDir * enemy.speed + -nz * weave * enemy.speed;
+        vz = nx * enemy.orbitDir * enemy.speed + nx * weave * enemy.speed;
+      }
     } else if (enemy.kind === "gunship") {
       const radial = dist - enemy.preferredRange;
       vx = nx * radial * 0.85 + -nz * enemy.orbitDir * enemy.speed;
@@ -307,6 +336,18 @@ export function updateEnemies(
     vx += sep.x * SEPARATION_STRENGTH;
     vz += sep.z * SEPARATION_STRENGTH;
 
+    const standoff = applyPlayerStandoff(
+      vx,
+      vz,
+      dist,
+      nx,
+      nz,
+      enemyStandoffDistance(enemy),
+      enemy.speed,
+    );
+    vx = standoff.vx;
+    vz = standoff.vz;
+
     const mag = Math.hypot(vx, vz);
     const maxSpeed = enemy.speed * MAX_SPEED_MULT;
     if (mag > maxSpeed && mag > 0.0001) {
@@ -318,8 +359,7 @@ export function updateEnemies(
     clampToArena(enemy.position.x + vx * dt, enemy.position.z + vz * dt, posScratch);
     enemy.position.x = posScratch.x;
     enemy.position.z = posScratch.z;
-    enemy.heading =
-      enemy.kind === "interceptor" ? Math.atan2(vx, vz) : Math.atan2(dx, dz);
+    enemy.heading = Math.atan2(dx, dz);
     enemy.rotation = enemy.heading;
 
     tryEnemyShot(enemy, player, nx, nz, dist, dt, projectiles, nextId);

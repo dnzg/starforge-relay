@@ -1,3 +1,5 @@
+import { createSpeechQueue } from "./shipSpeechQueue";
+
 export interface ShipSpeakResult {
   audioUrl: string | null;
   provider: "fal" | "xai" | "none";
@@ -6,16 +8,73 @@ export interface ShipSpeakResult {
   error?: string;
 }
 
+export interface PlayShipTtsOptions {
+  onStart?: (text: string) => void;
+}
+
+type QueuedSpeech = {
+  text: string;
+  speech: Promise<ShipSpeakResult>;
+  onStart?: (text: string) => void;
+};
+
 let currentAudio: HTMLAudioElement | null = null;
-let playGeneration = 0;
+let finishCurrent: (() => void) | null = null;
+let playbackEpoch = 0;
+
+function stopCurrentAudio(): void {
+  if (currentAudio) {
+    currentAudio.pause();
+    currentAudio.removeAttribute("src");
+    currentAudio.load();
+    currentAudio = null;
+  }
+  const finish = finishCurrent;
+  finishCurrent = null;
+  finish?.();
+}
+
+async function playQueuedSpeech(item: QueuedSpeech): Promise<boolean> {
+  const epoch = playbackEpoch;
+  const spoken = await item.speech;
+  if (epoch !== playbackEpoch) return false;
+
+  item.onStart?.(item.text);
+  if (!spoken.audioUrl) return false;
+
+  const audio = new Audio(spoken.audioUrl);
+  currentAudio = audio;
+
+  try {
+    await audio.play();
+    if (epoch !== playbackEpoch) return false;
+    await new Promise<void>((resolve) => {
+      const finish = () => {
+        audio.removeEventListener("ended", finish);
+        audio.removeEventListener("error", finish);
+        if (finishCurrent === finish) finishCurrent = null;
+        resolve();
+      };
+      finishCurrent = finish;
+      audio.addEventListener("ended", finish);
+      audio.addEventListener("error", finish);
+    });
+    return epoch === playbackEpoch;
+  } catch {
+    return false;
+  } finally {
+    if (currentAudio === audio) {
+      currentAudio = null;
+    }
+  }
+}
+
+const speechQueue = createSpeechQueue(playQueuedSpeech);
 
 export function stopShipTts(): void {
-  playGeneration += 1;
-  if (!currentAudio) return;
-  currentAudio.pause();
-  currentAudio.removeAttribute("src");
-  currentAudio.load();
-  currentAudio = null;
+  playbackEpoch += 1;
+  speechQueue.clear();
+  stopCurrentAudio();
 }
 
 export async function requestShipSpeech(text: string): Promise<ShipSpeakResult> {
@@ -63,39 +122,13 @@ export async function requestShipSpeech(text: string): Promise<ShipSpeakResult> 
   }
 }
 
-export async function playShipTts(text: string): Promise<boolean> {
-  const generation = ++playGeneration;
-  if (currentAudio) {
-    currentAudio.pause();
-    currentAudio.removeAttribute("src");
-    currentAudio.load();
-    currentAudio = null;
-  }
-
-  const spoken = await requestShipSpeech(text);
-  if (generation !== playGeneration) return false;
-  if (!spoken.audioUrl) return false;
-
-  const audio = new Audio(spoken.audioUrl);
-  currentAudio = audio;
-
-  try {
-    await audio.play();
-    await new Promise<void>((resolve) => {
-      const finish = () => {
-        audio.removeEventListener("ended", finish);
-        audio.removeEventListener("error", finish);
-        resolve();
-      };
-      audio.addEventListener("ended", finish);
-      audio.addEventListener("error", finish);
-    });
-    return generation === playGeneration;
-  } catch {
-    return false;
-  } finally {
-    if (currentAudio === audio) {
-      currentAudio = null;
-    }
-  }
+export async function playShipTts(
+  text: string,
+  options?: PlayShipTtsOptions,
+): Promise<boolean> {
+  return speechQueue.enqueue({
+    text,
+    speech: requestShipSpeech(text),
+    onStart: options?.onStart,
+  });
 }

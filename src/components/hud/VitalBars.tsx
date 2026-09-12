@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { arcadeUiRef, MANA_MAX } from "../../lib/combat/arcadeUiRef";
+import { BLAST_CLIP } from "../../lib/combat/blastWeapon";
 
 interface VitalBarsProps {
   hull: number;
@@ -71,19 +72,49 @@ function MkBar({
 
 export function VitalBars({ hull, shields }: VitalBarsProps) {
   const [mana, setMana] = useState(0);
+  const [ammo, setAmmo] = useState(BLAST_CLIP);
+  const [reloading, setReloading] = useState(false);
+  const [reloadProgress, setReloadProgress] = useState(1);
 
   useEffect(() => {
     const interval = window.setInterval(() => {
       setMana((arcadeUiRef.mana / MANA_MAX) * 100);
+      setAmmo(arcadeUiRef.ammo);
+      setReloading(arcadeUiRef.reloading);
+      setReloadProgress(arcadeUiRef.reloadProgress);
     }, 100);
     return () => window.clearInterval(interval);
   }, []);
 
+  const ammoPercent = reloading
+    ? reloadProgress * 100
+    : (ammo / Math.max(1, arcadeUiRef.ammoMax)) * 100;
+
   return (
-    <div className="mk-bars" aria-label="Hull, shields, and mana">
+    <div className="mk-bars" aria-label="Hull, shields, mana, and cannons">
       <MkBar label="Shields" value={shields} kind="shields" />
       <MkBar label="Hull" value={hull} kind="hull" />
       <MkBar label="Mana" value={mana} kind="mana" />
+      <div className={`mk-ammo ${reloading ? "is-reloading" : ""}`}>
+        <div className="mk-bar-meta">
+          <span>{reloading ? "Reload" : "Cannons"}</span>
+          <strong>
+            {reloading
+              ? `${Math.round(reloadProgress * 100)}%`
+              : `${ammo}/${arcadeUiRef.ammoMax || BLAST_CLIP}`}
+          </strong>
+        </div>
+        <div
+          className="mk-bar-track"
+          role="meter"
+          aria-label="Cannon ammo"
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={Math.round(ammoPercent)}
+        >
+          <span className={`mk-bar-fill is-ammo ${reloading ? "is-reload" : ""}`} style={{ width: `${ammoPercent}%` }} />
+        </div>
+      </div>
     </div>
   );
 }

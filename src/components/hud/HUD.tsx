@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useGame } from "../../providers/GameProvider";
-import { arcadeUiRef } from "../../lib/combat/arcadeUiRef";
+import { arcadeUiRef, setVoiceWorldSlow } from "../../lib/combat/arcadeUiRef";
 import { interpretVoiceTranscript } from "../../lib/voice";
 import { parseCommand } from "../../lib/game/commandResolver";
 import { pronounsFor } from "../../lib/game/captainProfile";
@@ -48,12 +48,35 @@ export function HUD({
   const dismissHints = useCallback(() => setHintDismissed(true), []);
   const showHintStrip = !hintDismissed && !briefingOpen;
   const [gateOpen, setGateOpen] = useState(false);
+  const [voiceListening, setVoiceListening] = useState(false);
+  const [voiceProcessing, setVoiceProcessing] = useState(false);
+  const [heardText, setHeardText] = useState("");
+  const [captionOpen, setCaptionOpen] = useState(false);
+  const captionHideRef = useRef(0);
+  const voiceLive = voiceListening || voiceProcessing;
 
   useEffect(() => {
     const interval = window.setInterval(() => {
       setGateOpen(arcadeUiRef.jumpGateUnlocked);
     }, 150);
     return () => window.clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    setVoiceWorldSlow(voiceLive);
+    return () => setVoiceWorldSlow(false);
+  }, [voiceLive]);
+
+  useEffect(() => {
+    if (disabled) {
+      setVoiceListening(false);
+      setVoiceProcessing(false);
+      setVoiceWorldSlow(false);
+    }
+  }, [disabled]);
+
+  useEffect(() => {
+    return () => window.clearTimeout(captionHideRef.current);
   }, []);
 
   const handleTouchMove = useCallback(
@@ -112,6 +135,61 @@ export function HUD({
     [appendShipMessage, sendCommand, talkContext],
   );
 
+  const showHeardText = useCallback((text: string) => {
+    window.clearTimeout(captionHideRef.current);
+    setHeardText(text);
+    setCaptionOpen(true);
+  }, []);
+
+  const handleVoiceTalk = useCallback(
+    async (text: string) => {
+      window.clearTimeout(captionHideRef.current);
+      setHeardText(text);
+      setCaptionOpen(true);
+      setVoiceListening(false);
+      setVoiceProcessing(true);
+      try {
+        await handleTalk(text, "voice");
+      } finally {
+        setVoiceProcessing(false);
+        captionHideRef.current = window.setTimeout(() => {
+          setCaptionOpen(false);
+          setHeardText("");
+        }, 1600);
+      }
+    },
+    [handleTalk],
+  );
+
+  const handleListeningChange = useCallback(
+    (listening: boolean, reason?: "cancel" | "result") => {
+      window.clearTimeout(captionHideRef.current);
+      setVoiceListening(listening);
+      if (listening) {
+        setHeardText("");
+        setCaptionOpen(true);
+        return;
+      }
+      if (reason === "cancel") {
+        setCaptionOpen(false);
+        setHeardText("");
+      }
+    },
+    [],
+  );
+
+  const voicePhase = voiceProcessing
+    ? "processing"
+    : voiceListening
+      ? "listening"
+      : "idle";
+  const voiceStatus = voiceProcessing
+    ? "Working on that…"
+    : voiceListening
+      ? "Listening…"
+      : "";
+  const showVoiceCaption = captionOpen && (Boolean(voiceStatus) || Boolean(heardText));
+
   return (
     <div
       className={`hud-overlay ${logOpen ? "log-is-open" : ""} ${garageOpen ? "garage-is-open" : ""} ${run?.status === "ended" ? "gameover-is-open" : ""}`}
@@ -151,10 +229,21 @@ export function HUD({
         onSuper={onTouchSuper}
       />
 
-      <footer className="hud-chrome hud-chrome-bottom">
+      <footer className={`hud-chrome hud-chrome-bottom ${voiceLive ? "is-voice-live" : ""}`}>
+        {showVoiceCaption ? (
+          <div className="voice-caption" aria-live="polite">
+            {voiceStatus ? <p className="voice-caption-status">{voiceStatus}</p> : null}
+            {heardText ? (
+              <p className="voice-caption-text">{heardText}</p>
+            ) : null}
+          </div>
+        ) : null}
         <MicButton
-          onVoiceResult={(text) => handleTalk(text, "voice")}
-          onVoiceMock={(text) => handleTalk(text, "voice")}
+          onVoiceResult={handleVoiceTalk}
+          onVoiceMock={handleVoiceTalk}
+          onListeningChange={handleListeningChange}
+          onHeardText={showHeardText}
+          phase={voicePhase}
           disabled={disabled}
         />
         <CommandInput
