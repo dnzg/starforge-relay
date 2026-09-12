@@ -22,11 +22,15 @@ const SECTOR_SUFFIXES = [
   "Terminus",
 ];
 
-function hashSeed(seed: number): number {
+export function hashSeed(seed: number): number {
   let h = seed ^ 0xdeadbeef;
   h = Math.imul(h ^ (h >>> 16), 0x85ebca6b);
   h = Math.imul(h ^ (h >>> 13), 0xc2b2ae35);
   return (h ^ (h >>> 16)) >>> 0;
+}
+
+export function nextSectorSeed(currentSeed: number, jumpsCompleted: number): number {
+  return hashSeed(currentSeed + jumpsCompleted + 1);
 }
 
 export function sectorNameFromSeed(seed: number): string {

@@ -103,3 +103,19 @@ export function applyTextureUrl(
 export function clearSectorArtMemoryCache(): void {
   memoryCache.clear();
 }
+
+export async function prefetchSectorArt(seed: number): Promise<void> {
+  if (memoryCache.has(seed)) return;
+  try {
+    const result = await fetchSectorArtFromApi(seed);
+    if (result.textureUrl) {
+      memoryCache.set(seed, result);
+    }
+  } catch {
+    // Prefetch is best-effort; gameplay uses procedural fallback.
+  }
+}
+
+export function peekSectorArtCache(seed: number): SectorArtResult | undefined {
+  return memoryCache.get(seed);
+}
