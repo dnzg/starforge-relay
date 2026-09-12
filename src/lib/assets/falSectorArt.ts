@@ -1,50 +1,83 @@
-export interface SectorArtResult {
-  seed: number;
-  textureUrl: string | null;
-  placeholder: boolean;
-  prompt: string;
-  metadata: {
-    model: string;
-    generatedAt: number;
-  };
-}
+import type { SectorArtResult } from "./types";
+
+export type { SectorArtResult } from "./types";
 
 export interface SectorArtGenerator {
   generateSectorArt: (seed: number) => Promise<SectorArtResult>;
 }
 
-/**
- * Stub for Fal.ai planet texture generation.
- * Swap implementation to call Fal flux/sdxl when FAL_KEY is configured.
- *
- * Hook: pass result.textureUrl to Planet mesh material.
- */
+function placeholderResult(seed: number, error?: string): SectorArtResult {
+  const prompt = [
+    "Seamless sci-fi desert planet surface texture map,",
+    "crystalline sand dunes, rust amber and deep violet canyons,",
+    `seed ${seed}`,
+  ].join(" ");
+
+  return {
+    seed,
+    textureUrl: null,
+    placeholder: true,
+    prompt,
+    error,
+    metadata: {
+      model: "procedural-placeholder",
+      generatedAt: Date.now(),
+    },
+  };
+}
+
+async function fetchSectorArtFromApi(seed: number): Promise<SectorArtResult> {
+  const response = await fetch("/api/sector-art", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ seed }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Sector art API ${response.status}`);
+  }
+
+  const payload = (await response.json()) as SectorArtResult;
+  return {
+    seed: payload.seed ?? seed,
+    textureUrl: payload.textureUrl ?? null,
+    placeholder: payload.placeholder ?? !payload.textureUrl,
+    prompt: payload.prompt,
+    error: payload.error,
+    metadata: payload.metadata ?? {
+      model: "unknown",
+      generatedAt: Date.now(),
+    },
+  };
+}
+
 export function createFalSectorArtStub(): SectorArtGenerator {
   return {
-    async generateSectorArt(seed: number): Promise<SectorArtResult> {
-      const prompt = `Procedural desert planet surface, sci-fi, seed ${seed}, cinematic, no text`;
-      return {
-        seed,
-        textureUrl: null,
-        placeholder: true,
-        prompt,
-        metadata: {
-          model: "fal-flux-stub",
-          generatedAt: Date.now(),
-        },
-      };
+    async generateSectorArt(seed: number) {
+      return placeholderResult(seed, "FAL_KEY not configured");
     },
   };
 }
 
 export async function generateSectorArt(seed: number): Promise<SectorArtResult> {
-  const generator = createFalSectorArtStub();
-  return generator.generateSectorArt(seed);
+  try {
+    const result = await fetchSectorArtFromApi(seed);
+    if (result.textureUrl) {
+      return result;
+    }
+    return {
+      ...placeholderResult(seed, result.error),
+      prompt: result.prompt,
+      metadata: result.metadata,
+    };
+  } catch (error) {
+    return placeholderResult(
+      seed,
+      error instanceof Error ? error.message : "Sector art API unavailable",
+    );
+  }
 }
 
-/**
- * Call when Fal returns a hosted texture URL.
- */
 export function applyTextureUrl(
   current: SectorArtResult,
   textureUrl: string,

@@ -1,7 +1,7 @@
 import { useGame } from "../../providers/GameProvider";
 
 export function StatusPanel() {
-  const { run, loading, backend } = useGame();
+  const { run, loading, backend, textureLoading, textureStatus } = useGame();
 
   if (loading || !run) {
     return (
@@ -31,6 +31,10 @@ export function StatusPanel() {
       ) : (
         <p className="muted">Long-range scan idle. Command: scan</p>
       )}
+      <p className={`texture-status ${textureLoading ? "texture-loading" : ""}`}>
+        {textureLoading ? "⏳ " : "🪐 "}
+        {textureStatus}
+      </p>
     </section>
   );
 }

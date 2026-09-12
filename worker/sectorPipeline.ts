@@ -1,28 +1,12 @@
-export interface SectorGenerationJob {
-  runId: string;
-  seed: number;
-  sectorName: string;
-  threatLevel: number;
-}
+import { generateFalSectorArtServer } from "../shared/falSectorArtServer.js";
+import {
+  buildQueuedAssetJobs,
+  buildSectorJson,
+  type SectorGenerationJob,
+  type SectorGenerationResult,
+} from "../shared/sectorGeneration.js";
 
-export interface SectorGenerationResult {
-  job: SectorGenerationJob;
-  sectorJson: {
-    seed: number;
-    name: string;
-    threatLevel: number;
-    planet: {
-      type: string;
-      textureUrl: string | null;
-    };
-    encounters: string[];
-  };
-  assetJobs: Array<{
-    type: "planet_texture" | "skybox" | "audio_stinger";
-    status: "queued" | "running" | "done" | "failed";
-    payload: Record<string, unknown>;
-  }>;
-}
+export type { SectorGenerationJob, SectorGenerationResult };
 
 export interface DaytonaSectorPipeline {
   enqueueSectorGeneration: (
@@ -30,38 +14,37 @@ export interface DaytonaSectorPipeline {
   ) => Promise<SectorGenerationResult>;
 }
 
-/**
- * Thin stub for a Daytona worker pipeline.
- * Production: push job to Daytona sandbox, run asset scripts, persist URLs to Convex.
- */
+export async function buildSectorGenerationResult(
+  job: SectorGenerationJob,
+  options?: { falKey?: string; requestFalTexture?: boolean },
+): Promise<SectorGenerationResult> {
+  const sectorJson = buildSectorJson(job);
+  const assetJobs = buildQueuedAssetJobs(job.seed);
+
+  if (options?.requestFalTexture === false) {
+    return { job, sectorJson, assetJobs };
+  }
+
+  assetJobs[0] = { ...assetJobs[0], status: "running" };
+  const art = await generateFalSectorArtServer(job.seed, options?.falKey);
+  sectorJson.planet.textureUrl = art.textureUrl;
+  assetJobs[0] = {
+    ...assetJobs[0],
+    status: art.textureUrl ? "done" : "failed",
+    payload: {
+      ...assetJobs[0].payload,
+      textureUrl: art.textureUrl,
+      error: art.error,
+    },
+  };
+
+  return { job, sectorJson, assetJobs };
+}
+
 export function createDaytonaPipelineStub(): DaytonaSectorPipeline {
   return {
-    async enqueueSectorGeneration(job: SectorGenerationJob) {
-      return {
-        job,
-        sectorJson: {
-          seed: job.seed,
-          name: job.sectorName,
-          threatLevel: job.threatLevel,
-          planet: {
-            type: "crystalline-desert",
-            textureUrl: null,
-          },
-          encounters: ["relay-beacon", "drift-miners", "void-storm"],
-        },
-        assetJobs: [
-          {
-            type: "planet_texture",
-            status: "queued",
-            payload: { seed: job.seed, provider: "fal" },
-          },
-          {
-            type: "skybox",
-            status: "queued",
-            payload: { seed: job.seed, variant: "nebula" },
-          },
-        ],
-      };
+    async enqueueSectorGeneration(job) {
+      return buildSectorGenerationResult(job, { requestFalTexture: false });
     },
   };
 }
@@ -69,6 +52,15 @@ export function createDaytonaPipelineStub(): DaytonaSectorPipeline {
 export async function generateSectorPackage(
   job: SectorGenerationJob,
 ): Promise<SectorGenerationResult> {
-  const pipeline = createDaytonaPipelineStub();
-  return pipeline.enqueueSectorGeneration(job);
+  return createDaytonaPipelineStub().enqueueSectorGeneration(job);
+}
+
+export async function generateSectorPackageLocal(
+  job: SectorGenerationJob,
+  options?: { falKey?: string; withFalTexture?: boolean },
+): Promise<SectorGenerationResult> {
+  return buildSectorGenerationResult(job, {
+    falKey: options?.falKey,
+    requestFalTexture: options?.withFalTexture ?? Boolean(options?.falKey),
+  });
 }

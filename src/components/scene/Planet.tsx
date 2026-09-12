@@ -1,19 +1,14 @@
-import { useMemo, useRef } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useFrame } from "@react-three/fiber";
 import { useTexture } from "@react-three/drei";
 import * as THREE from "three";
 
 export interface PlanetProps {
-  /** Swap this URL when Fal.ai returns a generated texture */
   textureUrl?: string | null;
   seed?: number;
   radius?: number;
   position?: [number, number, number];
-}
-
-function seededNoise(seed: number, u: number, v: number): number {
-  const x = Math.sin(seed * 0.013 + u * 12.9898 + v * 78.233) * 43758.5453;
-  return x - Math.floor(x);
+  onTextureApplied?: () => void;
 }
 
 function createProceduralPlanetMaterial(seed: number): THREE.ShaderMaterial {
@@ -21,8 +16,6 @@ function createProceduralPlanetMaterial(seed: number): THREE.ShaderMaterial {
     uniforms: {
       uSeed: { value: seed },
       uTime: { value: 0 },
-      uTexture: { value: null },
-      uUseTexture: { value: 0 },
     },
     vertexShader: `
       varying vec2 vUv;
@@ -36,8 +29,6 @@ function createProceduralPlanetMaterial(seed: number): THREE.ShaderMaterial {
     fragmentShader: `
       uniform float uSeed;
       uniform float uTime;
-      uniform sampler2D uTexture;
-      uniform float uUseTexture;
       varying vec2 vUv;
       varying vec3 vNormalW;
 
@@ -57,12 +48,6 @@ function createProceduralPlanetMaterial(seed: number): THREE.ShaderMaterial {
       }
 
       void main() {
-        if (uUseTexture > 0.5) {
-          vec4 tex = texture2D(uTexture, vUv);
-          gl_FragColor = tex;
-          return;
-        }
-
         float n = noise(vUv * 8.0 + uTime * 0.02);
         float band = smoothstep(0.35, 0.65, sin(vUv.y * 20.0 + n * 3.0));
         vec3 desert = vec3(0.72, 0.45, 0.22);
@@ -78,35 +63,17 @@ function createProceduralPlanetMaterial(seed: number): THREE.ShaderMaterial {
   });
 }
 
-function PlanetWithTexture({
-  textureUrl,
+function ProceduralPlanet({
+  seed,
   radius,
   position,
 }: {
-  textureUrl: string;
+  seed: number;
   radius: number;
   position: [number, number, number];
 }) {
-  const texture = useTexture(textureUrl);
-  return (
-    <mesh position={position}>
-      <sphereGeometry args={[radius, 64, 64]} />
-      <meshStandardMaterial map={texture} roughness={0.85} metalness={0.05} />
-    </mesh>
-  );
-}
-
-export function Planet({
-  textureUrl,
-  seed = 42,
-  radius = 2.4,
-  position = [8, -0.5, -12],
-}: PlanetProps) {
   const materialRef = useRef<THREE.ShaderMaterial | null>(null);
-  const material = useMemo(
-    () => createProceduralPlanetMaterial(seed),
-    [seed],
-  );
+  const material = useMemo(() => createProceduralPlanetMaterial(seed), [seed]);
   materialRef.current = material;
 
   useFrame(({ clock }) => {
@@ -114,16 +81,6 @@ export function Planet({
       materialRef.current.uniforms.uTime.value = clock.elapsedTime;
     }
   });
-
-  if (textureUrl) {
-    return (
-      <PlanetWithTexture
-        textureUrl={textureUrl}
-        radius={radius}
-        position={position}
-      />
-    );
-  }
 
   return (
     <mesh position={position}>
@@ -133,14 +90,87 @@ export function Planet({
   );
 }
 
-/** Helper for Fal hook: call after generateSectorArt returns a URL */
-export function applyPlanetTexture(
-  material: THREE.ShaderMaterial,
-  texture: THREE.Texture,
-): void {
-  material.uniforms.uTexture.value = texture;
-  material.uniforms.uUseTexture.value = 1;
-  material.needsUpdate = true;
+function TexturedPlanet({
+  textureUrl,
+  radius,
+  position,
+  onTextureApplied,
+}: {
+  textureUrl: string;
+  radius: number;
+  position: [number, number, number];
+  onTextureApplied?: () => void;
+}) {
+  const texture = useTexture(textureUrl);
+  const materialRef = useRef<THREE.MeshStandardMaterial>(null);
+  const [opacity, setOpacity] = useState(0);
+  const appliedRef = useRef(false);
+
+  useEffect(() => {
+    texture.colorSpace = THREE.SRGBColorSpace;
+    texture.anisotropy = 8;
+    setOpacity(0);
+    appliedRef.current = false;
+  }, [texture, textureUrl]);
+
+  useFrame((_, delta) => {
+    if (!materialRef.current) return;
+    if (opacity < 1) {
+      const next = Math.min(1, opacity + delta * 0.9);
+      setOpacity(next);
+      materialRef.current.opacity = next;
+      materialRef.current.transparent = next < 1;
+      materialRef.current.needsUpdate = true;
+      if (next >= 1 && !appliedRef.current) {
+        appliedRef.current = true;
+        onTextureApplied?.();
+      }
+    }
+  });
+
+  return (
+    <mesh position={position}>
+      <sphereGeometry args={[radius, 64, 64]} />
+      <meshStandardMaterial
+        ref={materialRef}
+        map={texture}
+        roughness={0.88}
+        metalness={0.04}
+        emissive="#1a1208"
+        emissiveIntensity={0.08}
+        transparent
+        opacity={0}
+      />
+    </mesh>
+  );
 }
 
-export { seededNoise };
+export function Planet({
+  textureUrl,
+  seed = 42,
+  radius = 2.4,
+  position = [8, -0.5, -12],
+  onTextureApplied,
+}: PlanetProps) {
+  return (
+    <>
+      {!textureUrl ? (
+        <ProceduralPlanet seed={seed} radius={radius} position={position} />
+      ) : null}
+      {textureUrl ? (
+        <Suspense
+          fallback={
+            <ProceduralPlanet seed={seed} radius={radius} position={position} />
+          }
+        >
+          <TexturedPlanet
+            textureUrl={textureUrl}
+            radius={radius}
+            position={position}
+            onTextureApplied={onTextureApplied}
+          />
+        </Suspense>
+      ) : null}
+    </>
+  );
+}

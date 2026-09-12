@@ -14,6 +14,7 @@ function nextRunId(): string {
 
 export function createLocalGameClient(): GameClient & {
   subscribe: (listener: () => void) => () => void;
+  setPlanetTextureUrl: (url: string | null | undefined) => void;
 } {
   let run: RunState | null = null;
   let logs: CommandLogEntry[] = [];
@@ -37,6 +38,12 @@ export function createLocalGameClient(): GameClient & {
     subscribe(listener: () => void) {
       listeners.add(listener);
       return () => listeners.delete(listener);
+    },
+
+    setPlanetTextureUrl(url: string | null | undefined) {
+      if (!run) return;
+      run = { ...run, planetTextureUrl: url ?? undefined };
+      notify();
     },
 
     async startRun(displayName: string) {

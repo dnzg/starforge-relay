@@ -193,6 +193,16 @@ body {
   font-size: 0.82rem;
 }
 
+.texture-status {
+  margin: 0.55rem 0 0;
+  font-size: 0.78rem;
+  color: #93c5fd;
+}
+
+.texture-status.texture-loading {
+  color: #fcd34d;
+}
+
 .transcript-panel {
   overflow: hidden;
 }
