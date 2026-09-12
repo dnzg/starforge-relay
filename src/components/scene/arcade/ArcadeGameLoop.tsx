@@ -11,6 +11,14 @@ import { PlayerShipMesh } from "./PlayerShipMesh";
 import { CombatMeshes } from "./CombatMeshes";
 import { JumpGateMesh } from "./JumpGateMesh";
 import {
+  enemyContactRadius,
+  enemyHitRadius,
+  MAX_PROJECTILES,
+  SECTOR_BOUNDS,
+  spawnEnemy,
+  updateEnemies,
+} from "./enemyBehavior";
+import {
   createInitialPlayer,
   dist2,
   type CombatCallbacks,
@@ -25,33 +33,15 @@ const BOOST_MULT = 1.75;
 const FIRE_COOLDOWN = 0.18;
 const PROJECTILE_SPEED = 28;
 const PROJECTILE_TTL = 2.2;
-const SECTOR_BOUNDS = 22;
 const ENEMY_CONTACT_DAMAGE = 12;
+const HOSTILE_SHOT_DAMAGE = 8;
+const HOSTILE_SHOT_RADIUS = 0.55;
 const ENEMY_SPAWN_INTERVAL = 2.4;
 const MAX_DELTA = 0.05;
 const JUMP_GATE_RADIUS = 2.2;
 
 function clampDelta(delta: number): number {
   return Math.min(delta, MAX_DELTA);
-}
-
-function spawnEnemy(
-  id: number,
-  player: PlayerState,
-  threatLevel: number,
-): Enemy {
-  const angle = Math.random() * Math.PI * 2;
-  const radius = 16 + Math.random() * 8;
-  return {
-    id,
-    position: {
-      x: player.position.x + Math.cos(angle) * radius,
-      z: player.position.z + Math.sin(angle) * radius,
-    },
-    hp: 2 + Math.floor(threatLevel / 4),
-    speed: 2.8 + threatLevel * 0.15,
-    strafePhase: Math.random() * Math.PI * 2,
-  };
 }
 
 function resetGameState(
@@ -81,7 +71,12 @@ function resetGameState(
   const initialCount = Math.min(5, 2 + Math.floor(threatLevel / 2));
   for (let i = 0; i < initialCount; i++) {
     enemiesRef.current.push(
-      spawnEnemy(nextIdRef.current++, playerRef.current, threatLevel),
+      spawnEnemy(
+        nextIdRef.current++,
+        playerRef.current,
+        threatLevel,
+        enemiesRef.current,
+      ),
     );
   }
 }
@@ -103,27 +98,6 @@ function updateProjectiles(
   projectiles.length = write;
 }
 
-function updateEnemies(
-  enemies: Enemy[],
-  player: PlayerState,
-  dt: number,
-  elapsed: number,
-): void {
-  for (let i = 0; i < enemies.length; i++) {
-    const enemy = enemies[i]!;
-    const dx = player.position.x - enemy.position.x;
-    const dz = player.position.z - enemy.position.z;
-    const dist = Math.max(0.001, Math.hypot(dx, dz));
-    const nx = dx / dist;
-    const nz = dz / dist;
-    const strafe = Math.sin(elapsed * 2 + enemy.strafePhase) * 0.35;
-    const px = -nz * strafe;
-    const pz = nx * strafe;
-    enemy.position.x += (nx + px) * enemy.speed * dt;
-    enemy.position.z += (nz + pz) * enemy.speed * dt;
-  }
-}
-
 function resolveCollisions(
   enemies: Enemy[],
   projectiles: Projectile[],
@@ -139,7 +113,10 @@ function resolveCollisions(
     let pw = 0;
     for (let pi = 0; pi < projectiles.length; pi++) {
       const projectile = projectiles[pi]!;
-      if (dist2(projectile.position, enemy.position) < 0.75) {
+      if (
+        projectile.team === "player" &&
+        dist2(projectile.position, enemy.position) < enemyHitRadius(enemy)
+      ) {
         hp -= 1;
       } else {
         projectiles[pw++] = projectile;
@@ -287,15 +264,18 @@ export function ArcadeGameLoop({
       fireCooldownRef.current = FIRE_COOLDOWN;
       const dirX = Math.sin(player.rotation);
       const dirZ = Math.cos(player.rotation);
-      projectilesRef.current.push({
-        id: nextIdRef.current++,
-        position: {
-          x: player.position.x + dirX * 0.8,
-          z: player.position.z + dirZ * 0.8,
-        },
-        velocity: { x: dirX * PROJECTILE_SPEED, z: dirZ * PROJECTILE_SPEED },
-        ttl: PROJECTILE_TTL,
-      });
+      if (projectilesRef.current.length < MAX_PROJECTILES) {
+        projectilesRef.current.push({
+          id: nextIdRef.current++,
+          position: {
+            x: player.position.x + dirX * 0.8,
+            z: player.position.z + dirZ * 0.8,
+          },
+          velocity: { x: dirX * PROJECTILE_SPEED, z: dirZ * PROJECTILE_SPEED },
+          ttl: PROJECTILE_TTL,
+          team: "player",
+        });
+      }
     }
 
     updateProjectiles(projectilesRef.current, dt);
@@ -308,7 +288,12 @@ export function ArcadeGameLoop({
     ) {
       spawnTimerRef.current = 0;
       enemiesRef.current.push(
-        spawnEnemy(nextIdRef.current++, player, threatLevel),
+        spawnEnemy(
+          nextIdRef.current++,
+          player,
+          threatLevel,
+          enemiesRef.current,
+        ),
       );
     }
 
@@ -317,6 +302,8 @@ export function ArcadeGameLoop({
       player,
       dt,
       clock.elapsedTime,
+      projectilesRef.current,
+      nextIdRef,
     );
 
     resolveCollisions(
@@ -328,14 +315,36 @@ export function ArcadeGameLoop({
     );
 
     if (!invulnRef.current) {
+      let hit = false;
       for (let i = 0; i < enemiesRef.current.length; i++) {
         const enemy = enemiesRef.current[i]!;
-        if (dist2(player.position, enemy.position) < 1.05) {
-          player.invulnTimer = 1.1;
-          invulnRef.current = true;
+        if (dist2(player.position, enemy.position) < enemyContactRadius(enemy)) {
           callbacks.onPlayerHit(ENEMY_CONTACT_DAMAGE);
+          hit = true;
           break;
         }
+      }
+      if (!hit) {
+        let pw = 0;
+        const shots = projectilesRef.current;
+        for (let i = 0; i < shots.length; i++) {
+          const projectile = shots[i]!;
+          if (
+            !hit &&
+            projectile.team === "hostile" &&
+            dist2(player.position, projectile.position) < HOSTILE_SHOT_RADIUS
+          ) {
+            callbacks.onPlayerHit(HOSTILE_SHOT_DAMAGE);
+            hit = true;
+            continue;
+          }
+          shots[pw++] = projectile;
+        }
+        shots.length = pw;
+      }
+      if (hit) {
+        player.invulnTimer = 1.1;
+        invulnRef.current = true;
       }
     }
 

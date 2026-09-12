@@ -5,19 +5,32 @@ export interface Vec2 {
   z: number;
 }
 
+export type ProjectileTeam = "player" | "hostile";
+
 export interface Projectile {
   id: number;
   position: Vec2;
   velocity: Vec2;
   ttl: number;
+  team: ProjectileTeam;
 }
+
+export const ENEMY_KINDS = ["interceptor", "gunship", "drone"] as const;
+export type EnemyKind = (typeof ENEMY_KINDS)[number];
+export type AttackPattern = "chase" | "strafe_orbit" | "sniper_hover";
 
 export interface Enemy {
   id: number;
+  kind: EnemyKind;
   position: Vec2;
   hp: number;
   speed: number;
+  radius: number;
+  heading: number;
   strafePhase: number;
+  orbitDir: 1 | -1;
+  preferredRange: number;
+  fireCooldown: number;
 }
 
 export interface PlayerState {
