@@ -14,14 +14,19 @@ import {
   applyArcadeFlight,
   CAM_BACK,
   CAM_HEIGHT,
-  headingForwardX,
-  headingForwardZ,
 } from "./arcadeFlight";
+import {
+  createExplosionPool,
+  ExplosionBursts,
+  spawnExplosion,
+} from "./ExplosionBursts";
+import { lerpAngle, noseDirection, yawFromDirection } from "./shipGeometry";
 import {
   createInitialPlayer,
   dist2,
   type CombatCallbacks,
   type Enemy,
+  type ExplosionSlot,
   type JumpGateState,
   type PlayerState,
   type Projectile,
@@ -29,14 +34,29 @@ import {
 
 const PLAYER_SPEED = 9;
 const BOOST_MULT = 1.75;
-const FIRE_COOLDOWN = 0.18;
+const FIRE_COOLDOWN = 0.16;
 const PROJECTILE_SPEED = 28;
+const ENEMY_BOLT_SPEED = 15;
 const PROJECTILE_TTL = 2.2;
-const SECTOR_BOUNDS = 22;
 const ENEMY_CONTACT_DAMAGE = 12;
+const ENEMY_BOLT_DAMAGE = 9;
 const ENEMY_SPAWN_INTERVAL = 2.4;
 const MAX_DELTA = 0.05;
 const JUMP_GATE_RADIUS = 2.2;
+const PLAYER_STANDOFF = 3.45;
+const PLAYER_HARD_RADIUS = 1.75;
+const ENEMY_SEP = 1.95;
+const CONTACT_RADIUS = 2.05;
+const PLAYER_BOLT_HIT = 0.9;
+const ENEMY_FIRE_RANGE = 14;
+const ENEMY_FIRE_COOLDOWN = 1.35;
+const SECTOR_BOUNDS = 22;
+const BASE_FOV = 60;
+const BOOST_FOV = 68;
+const WARP_FOV = 72;
+
+const _nose = new THREE.Vector3();
+const _shake = new THREE.Vector3();
 
 function clampDelta(delta: number): number {
   return Math.min(delta, MAX_DELTA);
@@ -47,17 +67,18 @@ function spawnEnemy(
   player: PlayerState,
   threatLevel: number,
 ): Enemy {
-  const angle = Math.random() * Math.PI * 2;
-  const radius = 16 + Math.random() * 8;
+  const angle = -Math.PI + 0.4 + Math.random() * (Math.PI - 0.8);
+  const radius = 9 + Math.random() * 7;
+  const x = player.position.x + Math.cos(angle) * radius;
+  const z = player.position.z + Math.sin(angle) * radius;
   return {
     id,
-    position: {
-      x: player.position.x + Math.cos(angle) * radius,
-      z: player.position.z + Math.sin(angle) * radius,
-    },
+    position: { x, z },
+    rotation: yawFromDirection(player.position.x - x, player.position.z - z),
     hp: 2 + Math.floor(threatLevel / 4),
     speed: 2.8 + threatLevel * 0.15,
     strafePhase: Math.random() * Math.PI * 2,
+    fireCooldown: 0.6 + Math.random() * 1.1,
   };
 }
 
@@ -71,6 +92,7 @@ function resetGameState(
   sectorKeyRef: RefObject<string>,
   sectorKillsRef: RefObject<number>,
   jumpGateRef: RefObject<JumpGateState>,
+  explosionsRef: RefObject<ExplosionSlot[]>,
 ) {
   if (sectorKeyRef.current === sectorKey) return;
   sectorKeyRef.current = sectorKey;
@@ -83,6 +105,9 @@ function resetGameState(
     active: false,
     position: { x: 0, z: -18 },
   };
+  for (const slot of explosionsRef.current) {
+    slot.active = false;
+  }
   resetArcadeUiForSector();
 
   const initialCount = Math.min(5, 2 + Math.floor(threatLevel / 2));
@@ -93,10 +118,7 @@ function resetGameState(
   }
 }
 
-function updateProjectiles(
-  projectiles: Projectile[],
-  dt: number,
-): void {
+function updateProjectiles(projectiles: Projectile[], dt: number): void {
   let write = 0;
   for (let i = 0; i < projectiles.length; i++) {
     const projectile = projectiles[i]!;
@@ -110,12 +132,62 @@ function updateProjectiles(
   projectiles.length = write;
 }
 
-function updateEnemies(
+function separateEnemies(enemies: Enemy[]): void {
+  for (let i = 0; i < enemies.length; i++) {
+    const a = enemies[i]!;
+    for (let j = i + 1; j < enemies.length; j++) {
+      const b = enemies[j]!;
+      const dx = a.position.x - b.position.x;
+      const dz = a.position.z - b.position.z;
+      const dist = Math.hypot(dx, dz);
+      if (dist >= ENEMY_SEP || dist < 0.0001) continue;
+      const push = (ENEMY_SEP - dist) * 0.5;
+      const nx = dx / dist;
+      const nz = dz / dist;
+      a.position.x += nx * push;
+      a.position.z += nz * push;
+      b.position.x -= nx * push;
+      b.position.z -= nz * push;
+    }
+  }
+}
+
+function fireEnemyBolts(
   enemies: Enemy[],
   player: PlayerState,
+  projectiles: Projectile[],
+  nextIdRef: RefObject<number>,
   dt: number,
-  elapsed: number,
 ): void {
+  for (let i = 0; i < enemies.length; i++) {
+    const enemy = enemies[i]!;
+    enemy.fireCooldown -= dt;
+    const dx = player.position.x - enemy.position.x;
+    const dz = player.position.z - enemy.position.z;
+    const dist = Math.hypot(dx, dz);
+    if (enemy.fireCooldown > 0 || dist > ENEMY_FIRE_RANGE || dist < 0.001) {
+      continue;
+    }
+    enemy.fireCooldown = ENEMY_FIRE_COOLDOWN + Math.random() * 0.35;
+    const nx = dx / dist;
+    const nz = dz / dist;
+    projectiles.push({
+      id: nextIdRef.current++,
+      position: {
+        x: enemy.position.x + nx * 0.9,
+        z: enemy.position.z + nz * 0.9,
+      },
+      velocity: {
+        x: nx * ENEMY_BOLT_SPEED,
+        z: nz * ENEMY_BOLT_SPEED,
+      },
+      ttl: PROJECTILE_TTL,
+      owner: "enemy",
+    });
+  }
+}
+
+function updateEnemies(enemies: Enemy[], player: PlayerState, dt: number): void {
   for (let i = 0; i < enemies.length; i++) {
     const enemy = enemies[i]!;
     const dx = player.position.x - enemy.position.x;
@@ -123,12 +195,38 @@ function updateEnemies(
     const dist = Math.max(0.001, Math.hypot(dx, dz));
     const nx = dx / dist;
     const nz = dz / dist;
-    const strafe = Math.sin(elapsed * 2 + enemy.strafePhase) * 0.35;
-    const px = -nz * strafe;
-    const pz = nx * strafe;
-    enemy.position.x += (nx + px) * enemy.speed * dt;
-    enemy.position.z += (nz + pz) * enemy.speed * dt;
+    const orbitSign = Math.sin(enemy.strafePhase) >= 0 ? 1 : -1;
+    const px = -nz * orbitSign;
+    const pz = nx * orbitSign;
+
+    if (dist > PLAYER_STANDOFF) {
+      const close = Math.min(1, (dist - PLAYER_STANDOFF) / 6);
+      enemy.position.x += (nx * (0.7 + close * 0.3) + px * 0.28) * enemy.speed * dt;
+      enemy.position.z += (nz * (0.7 + close * 0.3) + pz * 0.28) * enemy.speed * dt;
+    } else {
+      const hold = (PLAYER_STANDOFF - dist) * 1.8;
+      enemy.position.x += (px * enemy.speed - nx * hold) * dt;
+      enemy.position.z += (pz * enemy.speed - nz * hold) * dt;
+    }
+
+    const afterDx = player.position.x - enemy.position.x;
+    const afterDz = player.position.z - enemy.position.z;
+    const afterDist = Math.hypot(afterDx, afterDz);
+    if (afterDist < PLAYER_HARD_RADIUS && afterDist > 0.0001) {
+      const push = PLAYER_HARD_RADIUS - afterDist;
+      enemy.position.x -= (afterDx / afterDist) * push;
+      enemy.position.z -= (afterDz / afterDist) * push;
+    }
+
+    enemy.rotation = lerpAngle(
+      enemy.rotation,
+      yawFromDirection(dx, dz),
+      1 - Math.exp(-8 * dt),
+    );
+    enemy.strafePhase += dt * 0.35;
   }
+
+  separateEnemies(enemies);
 }
 
 function resolveCollisions(
@@ -137,8 +235,10 @@ function resolveCollisions(
   callbacks: CombatCallbacks,
   sectorKillsRef: RefObject<number>,
   jumpGateRef: RefObject<JumpGateState>,
+  explosions: ExplosionSlot[],
+  shakeRef: RefObject<number>,
 ): void {
-  const surviving: Enemy[] = [];
+  let surviving = 0;
   for (let ei = 0; ei < enemies.length; ei++) {
     const enemy = enemies[ei]!;
     let hp = enemy.hp;
@@ -146,7 +246,10 @@ function resolveCollisions(
     let pw = 0;
     for (let pi = 0; pi < projectiles.length; pi++) {
       const projectile = projectiles[pi]!;
-      if (dist2(projectile.position, enemy.position) < 0.75) {
+      if (
+        projectile.owner === "player" &&
+        dist2(projectile.position, enemy.position) < 0.85
+      ) {
         hp -= 1;
       } else {
         projectiles[pw++] = projectile;
@@ -155,6 +258,8 @@ function resolveCollisions(
     projectiles.length = pw;
 
     if (hp <= 0) {
+      spawnExplosion(explosions, enemy.position.x, enemy.position.z);
+      shakeRef.current = Math.max(shakeRef.current, 0.55);
       callbacks.onEnemyKilled();
       sectorKillsRef.current += 1;
       if (
@@ -165,11 +270,10 @@ function resolveCollisions(
       }
     } else {
       enemy.hp = hp;
-      surviving.push(enemy);
+      enemies[surviving++] = enemy;
     }
   }
-  enemies.length = 0;
-  enemies.push(...surviving);
+  enemies.length = surviving;
 }
 
 function updateObjectiveTarget(
@@ -217,6 +321,7 @@ function updateObjectiveTarget(
 
 interface ArcadeGameLoopProps {
   enabled: boolean;
+  hyperspaceActive?: boolean;
   sectorKey: string;
   threatLevel: number;
   getInput: () => ArcadeInputState;
@@ -225,15 +330,17 @@ interface ArcadeGameLoopProps {
 
 export function ArcadeGameLoop({
   enabled,
+  hyperspaceActive = false,
   sectorKey,
   threatLevel,
   getInput,
   callbacks,
 }: ArcadeGameLoopProps) {
-  const { camera, clock } = useThree();
+  const { camera } = useThree();
   const playerRef = useRef<PlayerState>(createInitialPlayer());
   const enemiesRef = useRef<Enemy[]>([]);
   const projectilesRef = useRef<Projectile[]>([]);
+  const explosionsRef = useRef<ExplosionSlot[]>(createExplosionPool());
   const nextIdRef = useRef(1);
   const fireCooldownRef = useRef(0);
   const spawnTimerRef = useRef(0);
@@ -246,8 +353,18 @@ export function ArcadeGameLoop({
   });
   const cameraTarget = useRef(new THREE.Vector3());
   const lookTarget = useRef(new THREE.Vector3());
-  const camOffset = useRef(new THREE.Vector3());
+  const camYawRef = useRef(0);
+  const shakeRef = useRef(0);
+  const turnRateRef = useRef(0);
   const jumpGateTriggeredRef = useRef(false);
+
+  useEffect(() => {
+    if (camera instanceof THREE.PerspectiveCamera) {
+      camera.clearViewOffset();
+      camera.far = 800;
+      camera.updateProjectionMatrix();
+    }
+  }, [camera]);
 
   useEffect(() => {
     jumpGateTriggeredRef.current = false;
@@ -261,129 +378,198 @@ export function ArcadeGameLoop({
       sectorKeyRef,
       sectorKillsRef,
       jumpGateRef,
+      explosionsRef,
     );
   }, [sectorKey, threatLevel]);
 
   useFrame((_, delta) => {
-    if (!enabled) return;
-
     const dt = clampDelta(delta);
     const player = playerRef.current;
-    const input = getInput();
-    const speed = PLAYER_SPEED * (input.boost ? BOOST_MULT : 1) * dt;
+    const persp =
+      camera instanceof THREE.PerspectiveCamera ? camera : null;
 
-    applyArcadeFlight(player, input, speed, dt);
+    if (enabled) {
+      const input = getInput();
+      const boost = input.boost ? BOOST_MULT : 1;
+      const speed = PLAYER_SPEED * boost * dt;
+      const previousYaw = player.rotation;
 
-    player.position.x = THREE.MathUtils.clamp(
-      player.position.x,
-      -SECTOR_BOUNDS,
-      SECTOR_BOUNDS,
-    );
-    player.position.z = THREE.MathUtils.clamp(
-      player.position.z,
-      -SECTOR_BOUNDS,
-      SECTOR_BOUNDS,
-    );
+      applyArcadeFlight(player, input, speed, dt);
+      player.position.x = THREE.MathUtils.clamp(
+        player.position.x,
+        -SECTOR_BOUNDS,
+        SECTOR_BOUNDS,
+      );
+      player.position.z = THREE.MathUtils.clamp(
+        player.position.z,
+        -SECTOR_BOUNDS,
+        SECTOR_BOUNDS,
+      );
 
-    fireCooldownRef.current = Math.max(0, fireCooldownRef.current - dt);
-    if (input.firePressed && fireCooldownRef.current <= 0) {
-      fireCooldownRef.current = FIRE_COOLDOWN;
-      const dirX = headingForwardX(player.rotation);
-      const dirZ = headingForwardZ(player.rotation);
-      projectilesRef.current.push({
-        id: nextIdRef.current++,
-        position: {
-          x: player.position.x + dirX * 0.8,
-          z: player.position.z + dirZ * 0.8,
-        },
-        velocity: { x: dirX * PROJECTILE_SPEED, z: dirZ * PROJECTILE_SPEED },
-        ttl: PROJECTILE_TTL,
-      });
-    }
+      turnRateRef.current = THREE.MathUtils.lerp(
+        turnRateRef.current,
+        player.rotation - previousYaw,
+        0.35,
+      );
 
-    updateProjectiles(projectilesRef.current, dt);
+      fireCooldownRef.current = Math.max(0, fireCooldownRef.current - dt);
+      if (input.fire && fireCooldownRef.current <= 0) {
+        fireCooldownRef.current = FIRE_COOLDOWN;
+        noseDirection(player.rotation, _nose);
+        projectilesRef.current.push({
+          id: nextIdRef.current++,
+          position: {
+            x: player.position.x + _nose.x * 0.95,
+            z: player.position.z + _nose.z * 0.95,
+          },
+          velocity: {
+            x: _nose.x * PROJECTILE_SPEED,
+            z: _nose.z * PROJECTILE_SPEED,
+          },
+          ttl: PROJECTILE_TTL,
+          owner: "player",
+        });
+      }
 
-    spawnTimerRef.current += dt;
-    const maxEnemies = 6 + Math.floor(threatLevel / 2);
-    if (
-      spawnTimerRef.current >= ENEMY_SPAWN_INTERVAL &&
-      enemiesRef.current.length < maxEnemies
-    ) {
-      spawnTimerRef.current = 0;
-      enemiesRef.current.push(
-        spawnEnemy(nextIdRef.current++, player, threatLevel),
+      updateProjectiles(projectilesRef.current, dt);
+
+      spawnTimerRef.current += dt;
+      const maxEnemies = 6 + Math.floor(threatLevel / 2);
+      if (
+        spawnTimerRef.current >= ENEMY_SPAWN_INTERVAL &&
+        enemiesRef.current.length < maxEnemies
+      ) {
+        spawnTimerRef.current = 0;
+        enemiesRef.current.push(
+          spawnEnemy(nextIdRef.current++, player, threatLevel),
+        );
+      }
+
+      updateEnemies(enemiesRef.current, player, dt);
+      fireEnemyBolts(
+        enemiesRef.current,
+        player,
+        projectilesRef.current,
+        nextIdRef,
+        dt,
+      );
+
+      resolveCollisions(
+        enemiesRef.current,
+        projectilesRef.current,
+        callbacks,
+        sectorKillsRef,
+        jumpGateRef,
+        explosionsRef.current,
+        shakeRef,
+      );
+
+      if (!invulnRef.current) {
+        let hit = false;
+        for (let i = 0; i < enemiesRef.current.length; i++) {
+          const enemy = enemiesRef.current[i]!;
+          if (dist2(player.position, enemy.position) < CONTACT_RADIUS) {
+            hit = true;
+            const dx = enemy.position.x - player.position.x;
+            const dz = enemy.position.z - player.position.z;
+            const dist = Math.max(0.001, Math.hypot(dx, dz));
+            enemy.position.x += (dx / dist) * 1.4;
+            enemy.position.z += (dz / dist) * 1.4;
+            callbacks.onPlayerHit(ENEMY_CONTACT_DAMAGE);
+            break;
+          }
+        }
+
+        if (!hit) {
+          let pw = 0;
+          for (let i = 0; i < projectilesRef.current.length; i++) {
+            const bolt = projectilesRef.current[i]!;
+            if (
+              bolt.owner === "enemy" &&
+              dist2(player.position, bolt.position) < PLAYER_BOLT_HIT
+            ) {
+              hit = true;
+              callbacks.onPlayerHit(ENEMY_BOLT_DAMAGE);
+              continue;
+            }
+            projectilesRef.current[pw++] = bolt;
+          }
+          projectilesRef.current.length = pw;
+        }
+
+        if (hit) {
+          player.invulnTimer = 1.1;
+          invulnRef.current = true;
+          shakeRef.current = Math.max(shakeRef.current, 0.7);
+        }
+      }
+
+      const gate = jumpGateRef.current;
+      if (
+        gate.active &&
+        !jumpGateTriggeredRef.current &&
+        dist2(player.position, gate.position) < JUMP_GATE_RADIUS
+      ) {
+        jumpGateTriggeredRef.current = true;
+        shakeRef.current = Math.max(shakeRef.current, 0.9);
+        callbacks.onJumpGateEnter();
+      }
+
+      updateObjectiveTarget(
+        player,
+        enemiesRef.current,
+        gate,
+        sectorKillsRef.current,
       );
     }
 
-    updateEnemies(
-      enemiesRef.current,
-      player,
-      dt,
-      clock.elapsedTime,
-    );
-
-    resolveCollisions(
-      enemiesRef.current,
-      projectilesRef.current,
-      callbacks,
-      sectorKillsRef,
-      jumpGateRef,
-    );
-
-    if (!invulnRef.current) {
-      for (let i = 0; i < enemiesRef.current.length; i++) {
-        const enemy = enemiesRef.current[i]!;
-        if (dist2(player.position, enemy.position) < 1.05) {
-          player.invulnTimer = 1.1;
-          invulnRef.current = true;
-          callbacks.onPlayerHit(ENEMY_CONTACT_DAMAGE);
-          break;
-        }
-      }
-    }
-
-    const gate = jumpGateRef.current;
-    if (
-      gate.active &&
-      !jumpGateTriggeredRef.current &&
-      dist2(player.position, gate.position) < JUMP_GATE_RADIUS
-    ) {
-      jumpGateTriggeredRef.current = true;
-      callbacks.onJumpGateEnter();
-    }
-
-    updateObjectiveTarget(
-      player,
-      enemiesRef.current,
-      gate,
-      sectorKillsRef.current,
-    );
-
-    const yaw = player.rotation;
-    camOffset.current.set(
-      Math.sin(yaw) * CAM_BACK,
-      CAM_HEIGHT + player.pitch * 0.85,
-      Math.cos(yaw) * CAM_BACK,
+    camYawRef.current = lerpAngle(
+      camYawRef.current,
+      player.rotation,
+      1 - Math.exp(-3.1 * dt),
     );
     cameraTarget.current.set(
-      player.position.x + camOffset.current.x,
-      camOffset.current.y,
-      player.position.z + camOffset.current.z,
+      player.position.x + Math.sin(camYawRef.current) * CAM_BACK,
+      CAM_HEIGHT + player.pitch * 0.85,
+      player.position.z + Math.cos(camYawRef.current) * CAM_BACK,
     );
-    const lerpFactor = 1 - Math.pow(0.001, dt);
+    shakeRef.current = Math.max(0, shakeRef.current - dt * 2.4);
+    if (shakeRef.current > 0) {
+      const s = shakeRef.current;
+      _shake.set(
+        Math.sin(player.invulnTimer * 38) * s * 0.28,
+        Math.cos(player.invulnTimer * 27) * s * 0.12,
+        Math.sin(player.invulnTimer * 21) * s * 0.22,
+      );
+      cameraTarget.current.add(_shake);
+    }
+
+    const lerpFactor = 1 - Math.exp(-5.2 * dt);
     camera.position.lerp(cameraTarget.current, lerpFactor);
     lookTarget.current.set(
-      player.position.x - Math.sin(yaw) * 1.6,
+      player.position.x - Math.sin(player.rotation) * 1.6,
       0.45 - player.pitch * 0.55,
-      player.position.z - Math.cos(yaw) * 1.6,
+      player.position.z - Math.cos(player.rotation) * 1.6,
     );
     camera.lookAt(lookTarget.current);
+    camera.rotateZ(-turnRateRef.current * 1.8);
+
+    if (persp) {
+      const targetFov = hyperspaceActive
+        ? WARP_FOV
+        : enabled && getInput().boost
+          ? BOOST_FOV
+          : BASE_FOV;
+      persp.fov += (targetFov - persp.fov) * (1 - Math.exp(-5 * dt));
+      persp.updateProjectionMatrix();
+    }
   });
 
   return (
     <>
       <PlayerShipMesh playerRef={playerRef} invulnRef={invulnRef} />
       <CombatMeshes enemiesRef={enemiesRef} projectilesRef={projectilesRef} />
+      <ExplosionBursts explosionsRef={explosionsRef} />
       <JumpGateMesh gateRef={jumpGateRef} />
     </>
   );

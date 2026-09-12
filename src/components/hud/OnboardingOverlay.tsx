@@ -1,62 +1,114 @@
-import { useCallback, useEffect, useState } from "react";
-
-const STORAGE_KEY = "starforge-relay-onboarding-v1";
+import { useCallback, useMemo, useState } from "react";
+import {
+  loadCaptainProfile,
+  saveCaptainProfile,
+  type CaptainGender,
+} from "../../lib/game/captainProfile";
 
 interface OnboardingOverlayProps {
-  onDismiss: () => void;
+  suggestedName: string;
+  onComplete: (name: string, gender: CaptainGender) => void;
 }
 
-export function OnboardingOverlay({ onDismiss }: OnboardingOverlayProps) {
-  const [visible, setVisible] = useState(false);
+export function OnboardingOverlay({
+  suggestedName,
+  onComplete,
+}: OnboardingOverlayProps) {
+  const existing = useMemo(() => loadCaptainProfile(), []);
+  const [step, setStep] = useState<"identity" | "briefing">("identity");
+  const [visible, setVisible] = useState(!existing);
+  const [name, setName] = useState(existing?.name ?? (suggestedName === "Captain" ? "" : suggestedName));
+  const [gender, setGender] = useState<CaptainGender>(existing?.gender ?? "they");
 
-  useEffect(() => {
-    try {
-      const seen = localStorage.getItem(STORAGE_KEY);
-      setVisible(seen !== "1");
-    } catch {
-      setVisible(true);
-    }
-  }, []);
-
-  const dismiss = useCallback(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY, "1");
-    } catch {
-      // Ignore storage failures in private browsing.
-    }
+  const finish = useCallback(() => {
+    const profile = saveCaptainProfile({
+      name: name.trim() || suggestedName || "Captain",
+      gender,
+    });
     setVisible(false);
-    onDismiss();
-  }, [onDismiss]);
+    onComplete(profile.name, profile.gender);
+  }, [gender, name, onComplete, suggestedName]);
 
   if (!visible) return null;
 
   return (
     <div className="onboarding-overlay" role="dialog" aria-labelledby="onboarding-title">
       <div className="onboarding-card">
-        <p className="eyebrow">Starforge Relay</p>
-        <h2 id="onboarding-title">Sector Combat Briefing</h2>
-        <p className="onboarding-lead">
-          Clear hostile contacts in this sector, then fly into the jump gate to reach the next world.
-        </p>
-
-        <ul className="onboarding-list">
-          <li>
-            <strong>Fly</strong> — W dive / S climb / A/D turn (touch D-pad on mobile)
-          </li>
-          <li>
-            <strong>Boost</strong> — Hold Shift
-          </li>
-          <li>
-            <strong>Fire</strong> — Space, click, or FIRE button
-          </li>
-          <li>
-            <strong>Objective</strong> — Destroy hostiles → Jump gate unlocks → Enter gate to jump
-          </li>
-        </ul>
-
-        <button type="button" className="onboarding-cta" onClick={dismiss}>
-          Engage
-        </button>
+        {step === "identity" ? (
+          <>
+            <p className="eyebrow stagger-item">Starforge Relay</p>
+            <h2 id="onboarding-title" className="stagger-item">
+              Sign the log
+            </h2>
+            <p className="onboarding-lead stagger-item">
+              The ship AI will address you by name and weave you into the sector brief.
+            </p>
+            <label className="onboarding-field stagger-item">
+              <span>Captain name</span>
+              <input
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+                maxLength={24}
+                placeholder="Your name"
+                autoComplete="nickname"
+              />
+            </label>
+            <fieldset className="onboarding-gender stagger-item">
+              <legend>Pronouns in the log</legend>
+              {(
+                [
+                  ["he", "He / him"],
+                  ["she", "She / her"],
+                  ["they", "They / them"],
+                ] as const
+              ).map(([value, label]) => (
+                <label key={value}>
+                  <input
+                    type="radio"
+                    name="gender"
+                    checked={gender === value}
+                    onChange={() => setGender(value)}
+                  />
+                  {label}
+                </label>
+              ))}
+            </fieldset>
+            <button
+              type="button"
+              className="onboarding-cta stagger-item"
+              onClick={() => setStep("briefing")}
+            >
+              Continue
+            </button>
+          </>
+        ) : (
+          <>
+            <p className="eyebrow stagger-item">Sector Combat Briefing</p>
+            <h2 id="onboarding-title" className="stagger-item">
+              Clear the reach
+            </h2>
+            <p className="onboarding-lead stagger-item">
+              Hostiles will fire. Talk to the ship. When the gate opens, fly through.
+            </p>
+            <ul className="onboarding-list stagger-item">
+              <li>
+                <strong>Fly</strong> — W dive, S climb, A left, D right
+              </li>
+              <li>
+                <strong>Boost</strong> — Hold Shift
+              </li>
+              <li>
+                <strong>Fire</strong> — Hold Space, click the sector, or FIRE
+              </li>
+              <li>
+                <strong>Talk</strong> — Type or speak to the ship AI
+              </li>
+            </ul>
+            <button type="button" className="onboarding-cta stagger-item" onClick={finish}>
+              Engage
+            </button>
+          </>
+        )}
       </div>
     </div>
   );

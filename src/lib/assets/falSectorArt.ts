@@ -1,12 +1,16 @@
-import type { SectorArtResult } from "./types";
+import type { SectorArtKind, SectorArtResult } from "./types";
 
-export type { SectorArtResult } from "./types";
+export type { SectorArtKind, SectorArtResult } from "./types";
 
 export interface SectorArtGenerator {
   generateSectorArt: (seed: number) => Promise<SectorArtResult>;
 }
 
-const memoryCache = new Map<number, SectorArtResult>();
+const memoryCache = new Map<string, SectorArtResult>();
+
+function cacheKey(seed: number, kind: SectorArtKind): string {
+  return `${kind}:${seed}`;
+}
 
 function placeholderResult(seed: number, error?: string): SectorArtResult {
   const prompt = [
@@ -29,11 +33,14 @@ function placeholderResult(seed: number, error?: string): SectorArtResult {
   };
 }
 
-async function fetchSectorArtFromApi(seed: number): Promise<SectorArtResult> {
+async function fetchSectorArtFromApi(
+  seed: number,
+  kind: SectorArtKind = "planet",
+): Promise<SectorArtResult> {
   const response = await fetch("/api/sector-art", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ seed }),
+    body: JSON.stringify({ seed, kind }),
   });
 
   if (!response.ok) {
@@ -63,16 +70,20 @@ export function createFalSectorArtStub(): SectorArtGenerator {
   };
 }
 
-export async function generateSectorArt(seed: number): Promise<SectorArtResult> {
-  const cached = memoryCache.get(seed);
+export async function generateSectorArt(
+  seed: number,
+  kind: SectorArtKind = "planet",
+): Promise<SectorArtResult> {
+  const key = cacheKey(seed, kind);
+  const cached = memoryCache.get(key);
   if (cached?.textureUrl) {
     return cached;
   }
 
   try {
-    const result = await fetchSectorArtFromApi(seed);
+    const result = await fetchSectorArtFromApi(seed, kind);
     if (result.textureUrl) {
-      memoryCache.set(seed, result);
+      memoryCache.set(key, result);
       return result;
     }
     return {
@@ -104,18 +115,25 @@ export function clearSectorArtMemoryCache(): void {
   memoryCache.clear();
 }
 
-export async function prefetchSectorArt(seed: number): Promise<void> {
-  if (memoryCache.has(seed)) return;
+export async function prefetchSectorArt(
+  seed: number,
+  kind: SectorArtKind = "planet",
+): Promise<void> {
+  const key = cacheKey(seed, kind);
+  if (memoryCache.has(key)) return;
   try {
-    const result = await fetchSectorArtFromApi(seed);
+    const result = await fetchSectorArtFromApi(seed, kind);
     if (result.textureUrl) {
-      memoryCache.set(seed, result);
+      memoryCache.set(key, result);
     }
   } catch {
     // Prefetch is best-effort; gameplay uses procedural fallback.
   }
 }
 
-export function peekSectorArtCache(seed: number): SectorArtResult | undefined {
-  return memoryCache.get(seed);
+export function peekSectorArtCache(
+  seed: number,
+  kind: SectorArtKind = "planet",
+): SectorArtResult | undefined {
+  return memoryCache.get(cacheKey(seed, kind));
 }

@@ -3,7 +3,10 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { serveStatic } from "@hono/node-server/serve-static";
 import { interpretVoiceInput } from "../shared/commandInterpreter.js";
-import { handleSectorArtRequest } from "../shared/falSectorArtServer.js";
+import {
+  handleSectorArtRequest,
+  handleShipLiveryRequest,
+} from "../shared/falSectorArtServer.js";
 import {
   buildVoiceStatus,
   createXaiEphemeralToken,
@@ -29,12 +32,14 @@ export function createApp(env: ServerEnv) {
 
   app.get("/api/sector-art/files/:filename", async (c) => {
     const filename = c.req.param("filename");
-    if (!/^\d+\.jpg$/.test(filename)) {
+    const match = /^(sky-)?(\d+)\.jpg$/.exec(filename);
+    if (!match) {
       return c.text("Invalid filename", 400);
     }
-    const seed = Number.parseInt(filename.replace(".jpg", ""), 10);
+    const kind = match[1] ? "sky" : "planet";
+    const seed = Number.parseInt(match[2] ?? "", 10);
     try {
-      const data = await readFile(sectorArtCache.imagePath(seed));
+      const data = await readFile(sectorArtCache.imagePath(seed, kind));
       return new Response(data, {
         headers: {
           "Content-Type": "image/jpeg",
@@ -58,12 +63,21 @@ export function createApp(env: ServerEnv) {
 
   app.get("/api/sector-art", async (c) => {
     const seed = c.req.query("seed");
-    const body = seed ? JSON.stringify({ seed: Number(seed) }) : "";
+    const kind = c.req.query("kind");
+    const body = seed
+      ? JSON.stringify({ seed: Number(seed), kind: kind === "sky" ? "sky" : "planet" })
+      : "";
     const result = await handleSectorArtRequest(
       body,
       env.falKey,
       sectorArtCache,
     );
+    return c.json(result);
+  });
+
+  app.post("/api/ship-livery", async (c) => {
+    const body = await c.req.text();
+    const result = await handleShipLiveryRequest(body, env.falKey);
     return c.json(result);
   });
 
@@ -80,12 +94,23 @@ export function createApp(env: ServerEnv) {
   });
 
   app.post("/api/voice/interpret", async (c) => {
-    const body = (await c.req.json().catch(() => ({}))) as { text?: string };
+    const body = (await c.req.json().catch(() => ({}))) as {
+      text?: string;
+      context?: {
+        captainName?: string;
+        pronouns?: string;
+        sectorName?: string;
+        hull?: number;
+        shields?: number;
+        threatLevel?: number;
+        sectorKills?: number;
+      };
+    };
     const text = body.text?.trim() ?? "";
     if (!text) {
       return c.json({ error: "text is required" }, 400);
     }
-    const result = await interpretVoiceInput(text, env.xaiApiKey);
+    const result = await interpretVoiceInput(text, env.xaiApiKey, body.context);
     return c.json(result);
   });
 

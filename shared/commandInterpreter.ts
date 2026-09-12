@@ -55,21 +55,52 @@ export function extractCommandVerb(text: string): CommandVerb | null {
   return null;
 }
 
+export interface ShipAiContext {
+  captainName?: string;
+  pronouns?: string;
+  sectorName?: string;
+  hull?: number;
+  shields?: number;
+  threatLevel?: number;
+  sectorKills?: number;
+}
+
 export interface ShipAiInterpretation {
   command: CommandVerb | null;
   shipReply: string;
   source: "local" | "xai" | "fallback";
 }
 
+function buildSystemPrompt(context?: ShipAiContext): string {
+  const name = context?.captainName?.trim() || "Captain";
+  const pronouns = context?.pronouns || "they/them";
+  const sector = context?.sectorName ?? "an unnamed sector";
+  const hull = context?.hull ?? 100;
+  const shields = context?.shields ?? 100;
+  const threat = context?.threatLevel ?? 3;
+  const kills = context?.sectorKills ?? 0;
+  return [
+    "You are the Starforge Relay ship AI — a dry, loyal copilot with a pulse.",
+    `Address the captain as ${name}. Pronouns: ${pronouns}.`,
+    `Live state: sector ${sector}, hull ${hull}, shields ${shields}, threat ${threat}, kills ${kills}.`,
+    "If the captain is issuing a bridge action, map it to one command: scan, hail, engage, flee, status, jump.",
+    "If they are talking, set command to null and answer in-world in 1-2 short sentences.",
+    "Never mention that you are an LLM. No markdown.",
+    'Respond ONLY JSON: {"command":"scan"|"hail"|"engage"|"flee"|"status"|"jump"|null,"shipReply":"short in-universe English reply"}',
+  ].join(" ");
+}
+
 export async function interpretVoiceInput(
   text: string,
   xaiApiKey?: string,
+  context?: ShipAiContext,
 ): Promise<ShipAiInterpretation> {
+  const name = context?.captainName?.trim() || "Captain";
   const direct = extractCommandVerb(text);
   if (direct) {
     return {
       command: direct,
-      shipReply: `Acknowledged, Captain. Executing ${direct}.`,
+      shipReply: `On it, ${name}. Executing ${direct}.`,
       source: "local",
     };
   }
@@ -77,8 +108,7 @@ export async function interpretVoiceInput(
   if (!xaiApiKey?.trim()) {
     return {
       command: null,
-      shipReply:
-        "Command unclear. Say or type: scan, hail, engage, flee, status, jump.",
+      shipReply: `${name}, I hear you. Without the deep-link I can still run scan, hail, engage, flee, status, or jump.`,
       source: "fallback",
     };
   }
@@ -92,13 +122,12 @@ export async function interpretVoiceInput(
       },
       body: JSON.stringify({
         model: "grok-3-mini",
-        temperature: 0.2,
+        temperature: 0.55,
         response_format: { type: "json_object" },
         messages: [
           {
             role: "system",
-            content:
-              'You are Starforge Relay ship AI. Map captain speech to one bridge command when possible: scan, hail, engage, flee, status, jump. Respond ONLY JSON: {"command":"scan"|"hail"|"engage"|"flee"|"status"|"jump"|null,"shipReply":"short in-universe English reply"}',
+            content: buildSystemPrompt(context),
           },
           { role: "user", content: text },
         ],

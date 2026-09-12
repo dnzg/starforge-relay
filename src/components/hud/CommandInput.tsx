@@ -34,7 +34,7 @@ export function CommandInput({ onSubmit, disabled }: CommandInputProps) {
           type="text"
           value={value}
           onChange={(e) => setValue(e.target.value)}
-          placeholder="Type command: scan, hail, engage..."
+          placeholder="Talk to the ship…"
           disabled={disabled || busy}
           autoComplete="off"
           spellCheck={false}

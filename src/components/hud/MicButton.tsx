@@ -12,7 +12,7 @@ export function MicButton({
   onVoiceMock,
   disabled,
 }: MicButtonProps) {
-  const { engine, hudLabel, mode, loading } = useVoiceRuntime();
+  const { engine, mode, loading } = useVoiceRuntime();
   const [listening, setListening] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -42,35 +42,35 @@ export function MicButton({
       return;
     }
     if (mode === "text") {
-      setError("Voice unavailable. Type a command below.");
+      void onVoiceMock("scan the sector");
       return;
     }
     setListening(true);
     await engine.startListening();
   };
 
+  const voiceUnavailable = mode === "text";
+
   return (
     <div className="mic-wrap">
-      <p className={`voice-link voice-link-${mode}`}>
-        {loading ? "Voice: checking link..." : hudLabel}
-      </p>
       <button
         type="button"
         className={`mic-button ${listening ? "mic-active" : ""}`}
         onClick={() => void toggleMic()}
-        disabled={disabled || loading || mode === "text"}
-        aria-label={listening ? "Stop voice command" : "Start voice command"}
+        disabled={disabled || loading}
+        aria-label={
+          listening
+            ? "Stop voice command"
+            : voiceUnavailable
+              ? "Mock scan the sector"
+              : "Start voice command"
+        }
+        title={voiceUnavailable ? "Voice offline — tap to mock scan" : undefined}
       >
-        {listening ? "Listening..." : "Voice Command"}
-      </button>
-      <button
-        type="button"
-        className="mic-mock"
-        disabled={disabled}
-        onClick={() => void onVoiceMock("scan the sector")}
-        title="Simulate voice recognition"
-      >
-        Mock: scan the sector
+        <span className={`mic-icon ${listening ? "is-active" : ""}`} aria-hidden="true">
+          <span className="mic-icon-idle">●</span>
+          <span className="mic-icon-live">◉</span>
+        </span>
       </button>
       {error ? <p className="mic-error">{error}</p> : null}
     </div>

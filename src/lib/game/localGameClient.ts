@@ -139,7 +139,8 @@ export function createLocalGameClient(): GameClient & {
         {
           command: "boot",
           source: "text",
-          response: `Starforge Relay online. Welcome, ${displayName}. Voice or text commands ready: scan, hail, engage, flee, status, jump.`,
+          speaker: "ship",
+          response: `Starforge Relay online. I have you, ${displayName}. Talk to me, or run scan, hail, engage, flee, status, jump.`,
           timestamp: Date.now(),
         },
       ];
@@ -157,6 +158,7 @@ export function createLocalGameClient(): GameClient & {
         {
           command: heardText,
           source,
+          speaker: "ship",
           response: shipReply,
           timestamp: Date.now(),
         },
@@ -174,7 +176,7 @@ export function createLocalGameClient(): GameClient & {
         const response = `Run ${run.status}. Start a new voyage from the bridge.`;
         logs = [
           ...logs,
-          { command, source, response, timestamp: Date.now() },
+          { command, source, speaker: "ship", response, timestamp: Date.now() },
         ];
         notify();
         return { response, run: {} };
@@ -186,7 +188,7 @@ export function createLocalGameClient(): GameClient & {
           "Unknown command. Available: scan, hail, engage, flee, status, jump.";
         logs = [
           ...logs,
-          { command, source, response, timestamp: Date.now() },
+          { command, source, speaker: "ship", response, timestamp: Date.now() },
         ];
         notify();
         return { response, run: {} };
@@ -203,6 +205,7 @@ export function createLocalGameClient(): GameClient & {
         {
           command: heard,
           source,
+          speaker: "ship",
           response: combinedResponse,
           timestamp: Date.now(),
         },
