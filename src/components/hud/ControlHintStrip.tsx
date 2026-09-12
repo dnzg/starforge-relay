@@ -55,7 +55,7 @@ export function ControlHintStrip({ visible, onDismiss }: ControlHintStripProps) 
       aria-hidden={!visible}
     >
       <span>
-        WASD / arrows move · Shift boost · Space fire
+        W dive · S climb · A left · D right · Shift boost · Space fire
       </span>
       <button
         type="button"

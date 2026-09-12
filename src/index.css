@@ -59,6 +59,14 @@ h3 {
   height: 100%;
   display: flex;
   flex-direction: column;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.app-shell input,
+.app-shell textarea {
+  user-select: text;
+  -webkit-user-select: text;
 }
 
 .browser-banner {
@@ -75,6 +83,8 @@ h3 {
   position: relative;
   flex: 1;
   min-height: 0;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .viewport .garage-overlay {
@@ -87,6 +97,8 @@ h3 {
   height: 100%;
   display: block;
   touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .hud-overlay {
