@@ -3,11 +3,12 @@ import { useState, type FormEvent } from "react";
 interface CommandInputProps {
   onSubmit: (command: string) => Promise<void>;
   disabled?: boolean;
+  jumpReady?: boolean;
 }
 
 const QUICK_COMMANDS = ["scan", "status", "hail", "jump", "engage", "flee"];
 
-export function CommandInput({ onSubmit, disabled }: CommandInputProps) {
+export function CommandInput({ onSubmit, disabled, jumpReady }: CommandInputProps) {
   const [value, setValue] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -34,7 +35,7 @@ export function CommandInput({ onSubmit, disabled }: CommandInputProps) {
           type="text"
           value={value}
           onChange={(e) => setValue(e.target.value)}
-          placeholder="Talk to the ship…"
+          placeholder={jumpReady ? "Say “jump” or fly into the gate…" : "Talk to the ship — try “scan the sector”"}
           disabled={disabled || busy}
           autoComplete="off"
           spellCheck={false}
@@ -44,12 +45,17 @@ export function CommandInput({ onSubmit, disabled }: CommandInputProps) {
           Send
         </button>
       </form>
+      <p className="command-voice-tip">
+        {jumpReady
+          ? "Jump gate is open. Fly into the JUMP ring, or say “jump”."
+          : "Voice examples: “scan the sector” · “status” · “jump”"}
+      </p>
       <div className="quick-commands">
         {QUICK_COMMANDS.map((cmd) => (
           <button
             key={cmd}
             type="button"
-            className="chip"
+            className={`chip ${cmd === "jump" && jumpReady ? "is-on" : ""}`}
             disabled={disabled || busy}
             onClick={() => void submit(cmd)}
           >

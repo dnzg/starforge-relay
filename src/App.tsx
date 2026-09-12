@@ -1,10 +1,17 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ArcadeScene } from "./components/scene/ArcadeScene";
 import { HUD } from "./components/hud/HUD";
 import { GarageOverlay } from "./components/hud/GarageOverlay";
 import { useTelegramWebApp } from "./hooks/useTelegramWebApp";
 import { useArcadeInput } from "./hooks/useArcadeInput";
 import { GameProvider, useGame } from "./providers/GameProvider";
+
+function isGameSurface(target: EventTarget | null): boolean {
+  return (
+    target instanceof Element &&
+    Boolean(target.closest(".app-shell") || target.closest("canvas"))
+  );
+}
 
 function GameShell() {
   const {
@@ -23,15 +30,28 @@ function GameShell() {
 
   const sectorKey = run ? `${run.id}:${run.sectorSeed}` : "boot";
 
+  useEffect(() => {
+    const onContextMenu = (event: MouseEvent) => {
+      if (isGameSurface(event.target)) {
+        event.preventDefault();
+      }
+    };
+    window.addEventListener("contextmenu", onContextMenu, true);
+    return () => window.removeEventListener("contextmenu", onContextMenu, true);
+  }, []);
+
   return (
-    <div className="app-shell">
+    <div className="app-shell" onContextMenu={(event) => event.preventDefault()}>
       {!isTelegram ? (
         <div className="browser-banner">
           Browser preview — open in Telegram for the Mini App.
         </div>
       ) : null}
 
-      <div className="viewport">
+      <div
+        className={`viewport${hyperspaceActive ? " is-hyperspace" : ""}`}
+        onContextMenu={(event) => event.preventDefault()}
+      >
         <ArcadeScene
           sectorSeed={run?.sectorSeed ?? 42}
           sectorKey={sectorKey}
@@ -47,6 +67,7 @@ function GameShell() {
         <HUD
           onTouchMove={arcadeInput.setTouchMove}
           onTouchFire={arcadeInput.setTouchFire}
+          onTouchSuper={arcadeInput.setTouchSuper}
           garageOpen={garageOpen}
           onGarageOpenChange={setGarageOpen}
         />

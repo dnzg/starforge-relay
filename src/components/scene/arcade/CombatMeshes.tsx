@@ -1,166 +1,505 @@
 import { useEffect, useMemo, useRef, type RefObject } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
-import type { Enemy, Projectile } from "./types";
-import { createBoltGeometry, createHostileGeometry } from "./shipGeometry";
-import { applyHullMaps, createHostileTextures } from "./shipTextures";
+import { MAX_ENEMIES, MAX_PROJECTILES } from "./enemyBehavior";
+import type { Enemy, EnemyKind, Projectile, SuperBurstState } from "./types";
 
-const MAX_ENEMIES = 16;
-const MAX_PROJECTILES = 48;
+const POOL_PER_KIND = MAX_ENEMIES;
 
-const _dummy = new THREE.Object3D();
-const _boltDir = new THREE.Vector3();
-const _up = new THREE.Vector3(0, 0, -1);
+interface SharedEnemyAssets {
+  interceptor: {
+    body: THREE.ConeGeometry;
+    wing: THREE.BoxGeometry;
+    bodyMat: THREE.MeshStandardMaterial;
+    wingMat: THREE.MeshStandardMaterial;
+  };
+  gunship: {
+    hull: THREE.BoxGeometry;
+    nacelle: THREE.CylinderGeometry;
+    turret: THREE.CylinderGeometry;
+    dome: THREE.SphereGeometry;
+    hullMat: THREE.MeshStandardMaterial;
+    nacelleMat: THREE.MeshStandardMaterial;
+    turretMat: THREE.MeshStandardMaterial;
+  };
+  drone: {
+    core: THREE.IcosahedronGeometry;
+    ring: THREE.TorusGeometry;
+    spike: THREE.ConeGeometry;
+    coreMat: THREE.MeshStandardMaterial;
+    ringMat: THREE.MeshStandardMaterial;
+    spikeMat: THREE.MeshStandardMaterial;
+  };
+  playerBolt: THREE.MeshStandardMaterial;
+  hostileBolt: THREE.MeshStandardMaterial;
+  bolt: THREE.CapsuleGeometry;
+}
+
+function createSharedAssets(): SharedEnemyAssets {
+  return {
+    interceptor: {
+      body: new THREE.ConeGeometry(0.22, 0.98, 6),
+      wing: new THREE.BoxGeometry(0.58, 0.04, 0.16),
+      bodyMat: new THREE.MeshStandardMaterial({
+        color: "#fb923c",
+        emissive: "#c2410c",
+        emissiveIntensity: 0.55,
+        metalness: 0.45,
+        roughness: 0.3,
+      }),
+      wingMat: new THREE.MeshStandardMaterial({
+        color: "#9a3412",
+        metalness: 0.4,
+        roughness: 0.45,
+      }),
+    },
+    gunship: {
+      hull: new THREE.BoxGeometry(1.35, 0.28, 0.72),
+      nacelle: new THREE.CylinderGeometry(0.12, 0.16, 0.7, 6),
+      turret: new THREE.CylinderGeometry(0.16, 0.18, 0.18, 8),
+      dome: new THREE.SphereGeometry(0.14, 8, 6),
+      hullMat: new THREE.MeshStandardMaterial({
+        color: "#c084fc",
+        emissive: "#6d28d9",
+        emissiveIntensity: 0.4,
+        metalness: 0.55,
+        roughness: 0.32,
+      }),
+      nacelleMat: new THREE.MeshStandardMaterial({
+        color: "#4c1d95",
+        metalness: 0.5,
+        roughness: 0.4,
+      }),
+      turretMat: new THREE.MeshStandardMaterial({
+        color: "#e879f9",
+        emissive: "#a21caf",
+        emissiveIntensity: 0.55,
+        metalness: 0.45,
+        roughness: 0.28,
+      }),
+    },
+    drone: {
+      core: new THREE.IcosahedronGeometry(0.28, 0),
+      ring: new THREE.TorusGeometry(0.38, 0.035, 8, 20),
+      spike: new THREE.ConeGeometry(0.05, 0.22, 5),
+      coreMat: new THREE.MeshStandardMaterial({
+        color: "#4ade80",
+        emissive: "#15803d",
+        emissiveIntensity: 0.6,
+        metalness: 0.35,
+        roughness: 0.25,
+      }),
+      ringMat: new THREE.MeshStandardMaterial({
+        color: "#86efac",
+        emissive: "#22c55e",
+        emissiveIntensity: 0.7,
+        metalness: 0.3,
+        roughness: 0.2,
+      }),
+      spikeMat: new THREE.MeshStandardMaterial({
+        color: "#166534",
+        metalness: 0.4,
+        roughness: 0.4,
+      }),
+    },
+    playerBolt: new THREE.MeshStandardMaterial({
+      color: "#fef08a",
+      emissive: "#facc15",
+      emissiveIntensity: 1.2,
+    }),
+    hostileBolt: new THREE.MeshStandardMaterial({
+      color: "#fda4af",
+      emissive: "#e11d48",
+      emissiveIntensity: 1.15,
+    }),
+    bolt: new THREE.CapsuleGeometry(0.06, 0.35, 4, 8),
+  };
+}
+
+function disposeSharedAssets(assets: SharedEnemyAssets): void {
+  assets.interceptor.body.dispose();
+  assets.interceptor.wing.dispose();
+  assets.interceptor.bodyMat.dispose();
+  assets.interceptor.wingMat.dispose();
+  assets.gunship.hull.dispose();
+  assets.gunship.nacelle.dispose();
+  assets.gunship.turret.dispose();
+  assets.gunship.dome.dispose();
+  assets.gunship.hullMat.dispose();
+  assets.gunship.nacelleMat.dispose();
+  assets.gunship.turretMat.dispose();
+  assets.drone.core.dispose();
+  assets.drone.ring.dispose();
+  assets.drone.spike.dispose();
+  assets.drone.coreMat.dispose();
+  assets.drone.ringMat.dispose();
+  assets.drone.spikeMat.dispose();
+  assets.playerBolt.dispose();
+  assets.hostileBolt.dispose();
+  assets.bolt.dispose();
+}
+
+function createInterceptorMesh(assets: SharedEnemyAssets): THREE.Group {
+  const group = new THREE.Group();
+  const body = new THREE.Mesh(assets.interceptor.body, assets.interceptor.bodyMat);
+  body.rotation.x = Math.PI / 2;
+  body.position.z = -0.12;
+  group.add(body);
+
+  const wingL = new THREE.Mesh(assets.interceptor.wing, assets.interceptor.wingMat);
+  wingL.position.set(-0.28, 0, 0.12);
+  wingL.rotation.z = 0.55;
+  group.add(wingL);
+
+  const wingR = new THREE.Mesh(assets.interceptor.wing, assets.interceptor.wingMat);
+  wingR.position.set(0.28, 0, 0.12);
+  wingR.rotation.z = -0.55;
+  group.add(wingR);
+
+  group.scale.setScalar(0.92);
+  group.visible = false;
+  group.userData.kind = "interceptor";
+  return group;
+}
+
+function createGunshipMesh(assets: SharedEnemyAssets): THREE.Group {
+  const group = new THREE.Group();
+  const hull = new THREE.Mesh(assets.gunship.hull, assets.gunship.hullMat);
+  group.add(hull);
+
+  const nacelleL = new THREE.Mesh(assets.gunship.nacelle, assets.gunship.nacelleMat);
+  nacelleL.rotation.x = Math.PI / 2;
+  nacelleL.position.set(-0.62, -0.02, 0.05);
+  group.add(nacelleL);
+
+  const nacelleR = new THREE.Mesh(assets.gunship.nacelle, assets.gunship.nacelleMat);
+  nacelleR.rotation.x = Math.PI / 2;
+  nacelleR.position.set(0.62, -0.02, 0.05);
+  group.add(nacelleR);
+
+  const turret = new THREE.Mesh(assets.gunship.turret, assets.gunship.turretMat);
+  turret.position.set(0, 0.22, 0.05);
+  group.add(turret);
+
+  const dome = new THREE.Mesh(assets.gunship.dome, assets.gunship.turretMat);
+  dome.position.set(0, 0.34, 0.05);
+  group.add(dome);
+
+  group.scale.setScalar(1.05);
+  group.visible = false;
+  group.userData.kind = "gunship";
+  return group;
+}
+
+function createDroneMesh(assets: SharedEnemyAssets): THREE.Group {
+  const group = new THREE.Group();
+  const core = new THREE.Mesh(assets.drone.core, assets.drone.coreMat);
+  group.add(core);
+
+  const ring = new THREE.Mesh(assets.drone.ring, assets.drone.ringMat);
+  ring.rotation.x = Math.PI / 2;
+  group.add(ring);
+  group.userData.spin = ring;
+
+  const spikeA = new THREE.Mesh(assets.drone.spike, assets.drone.spikeMat);
+  spikeA.position.set(0, 0.34, 0);
+  group.add(spikeA);
+
+  const spikeB = new THREE.Mesh(assets.drone.spike, assets.drone.spikeMat);
+  spikeB.position.set(0, -0.34, 0);
+  spikeB.rotation.x = Math.PI;
+  group.add(spikeB);
+
+  group.scale.setScalar(0.72);
+  group.visible = false;
+  group.userData.kind = "drone";
+  return group;
+}
+
+function createGlowBolt(owner: "player" | "enemy"): THREE.Group {
+  const group = new THREE.Group();
+  const core = new THREE.Mesh(
+    new THREE.CapsuleGeometry(0.045, 0.42, 4, 8),
+    new THREE.MeshBasicMaterial({
+      color: owner === "enemy" ? "#fecdd3" : "#fff7ad",
+      toneMapped: false,
+    }),
+  );
+  core.rotation.x = Math.PI / 2;
+  group.add(core);
+
+  const glow = new THREE.Mesh(
+    new THREE.CapsuleGeometry(0.13, 0.72, 4, 8),
+    new THREE.MeshBasicMaterial({
+      color: owner === "enemy" ? "#fb7185" : "#facc15",
+      transparent: true,
+      opacity: 0.55,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      toneMapped: false,
+    }),
+  );
+  glow.rotation.x = Math.PI / 2;
+  group.add(glow);
+
+  const trail = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.2, 1.85),
+    new THREE.MeshBasicMaterial({
+      color: owner === "enemy" ? "#fda4af" : "#7dd3fc",
+      transparent: true,
+      opacity: 0.42,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+      toneMapped: false,
+    }),
+  );
+  trail.rotation.x = Math.PI / 2;
+  trail.position.z = -0.85;
+  group.add(trail);
+
+  group.visible = false;
+  group.userData.owner = owner;
+  return group;
+}
+
+function createSuperBolt(): THREE.Group {
+  const group = new THREE.Group();
+  const core = new THREE.Mesh(
+    new THREE.CapsuleGeometry(0.09, 1.15, 4, 8),
+    new THREE.MeshBasicMaterial({
+      color: "#ecfeff",
+      toneMapped: false,
+    }),
+  );
+  core.rotation.x = Math.PI / 2;
+  group.add(core);
+
+  const glow = new THREE.Mesh(
+    new THREE.CapsuleGeometry(0.22, 1.6, 4, 8),
+    new THREE.MeshBasicMaterial({
+      color: "#22d3ee",
+      transparent: true,
+      opacity: 0.7,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      toneMapped: false,
+    }),
+  );
+  glow.rotation.x = Math.PI / 2;
+  group.add(glow);
+
+  const trail = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.42, 3.4),
+    new THREE.MeshBasicMaterial({
+      color: "#a5f3fc",
+      transparent: true,
+      opacity: 0.5,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+      toneMapped: false,
+    }),
+  );
+  trail.rotation.x = Math.PI / 2;
+  trail.position.z = -1.4;
+  group.add(trail);
+
+  group.visible = false;
+  group.userData.kind = "super";
+  return group;
+}
+
+const KIND_ORDER: EnemyKind[] = ["interceptor", "gunship", "drone"];
 
 interface CombatMeshesProps {
   enemiesRef: RefObject<Enemy[]>;
   projectilesRef: RefObject<Projectile[]>;
+  superBurstRef: RefObject<SuperBurstState>;
 }
 
 export function CombatMeshes({
   enemiesRef,
   projectilesRef,
+  superBurstRef,
 }: CombatMeshesProps) {
-  const enemyMeshRef = useRef<THREE.InstancedMesh>(null);
-  const boltMeshRef = useRef<THREE.InstancedMesh>(null);
-  const enemyBoltMeshRef = useRef<THREE.InstancedMesh>(null);
-
-  const hostileGeometry = useMemo(() => createHostileGeometry(), []);
-  const boltGeometry = useMemo(() => createBoltGeometry(), []);
-  const hostileMaps = useMemo(() => createHostileTextures(), []);
-
-  const hostileMaterial = useMemo(() => {
-    const material = new THREE.MeshStandardMaterial({
-      color: "#ffffff",
-      emissive: "#de2944",
-      emissiveIntensity: 0.42,
-      metalness: 0.62,
-      roughness: 0.34,
-    });
-    applyHullMaps(material, hostileMaps, 1.35);
-    return material;
-  }, [hostileMaps]);
-
-  const boltMaterial = useMemo(
+  const enemyGroupRef = useRef<THREE.Group>(null);
+  const projectileGroupRef = useRef<THREE.Group>(null);
+  const assets = useMemo(() => createSharedAssets(), []);
+  const pools = useMemo(
+    () => ({
+      interceptor: Array.from({ length: POOL_PER_KIND }, () =>
+        createInterceptorMesh(assets),
+      ),
+      gunship: Array.from({ length: POOL_PER_KIND }, () =>
+        createGunshipMesh(assets),
+      ),
+      drone: Array.from({ length: POOL_PER_KIND }, () => createDroneMesh(assets)),
+    }),
+    [assets],
+  );
+  const playerBoltPool = useMemo(
+    () => Array.from({ length: MAX_PROJECTILES }, () => createGlowBolt("player")),
+    [],
+  );
+  const enemyBoltPool = useMemo(
+    () => Array.from({ length: MAX_PROJECTILES }, () => createGlowBolt("enemy")),
+    [],
+  );
+  const superBoltPool = useMemo(
+    () => Array.from({ length: 4 }, () => createSuperBolt()),
+    [],
+  );
+  const novaMaterial = useMemo(
     () =>
-      new THREE.MeshStandardMaterial({
-        color: "#ffd0d6",
-        emissive: "#de2944",
-        emissiveIntensity: 1.4,
+      new THREE.MeshBasicMaterial({
+        color: "#67e8f9",
+        transparent: true,
+        opacity: 0,
+        depthWrite: false,
+        side: THREE.DoubleSide,
         toneMapped: false,
       }),
     [],
   );
-  const enemyBoltMaterial = useMemo(
-    () =>
-      new THREE.MeshStandardMaterial({
-        color: "#ffe7b8",
-        emissive: "#f0a030",
-        emissiveIntensity: 1.5,
-        toneMapped: false,
-      }),
-    [],
-  );
+  const novaGeometry = useMemo(() => new THREE.RingGeometry(0.65, 0.95, 40), []);
+  const novaRef = useRef<THREE.Mesh>(null);
+  const novaLightRef = useRef<THREE.PointLight>(null);
 
-  useEffect(
-    () => () => {
-      hostileMaps.dispose();
-      hostileGeometry.dispose();
-      boltGeometry.dispose();
-      hostileMaterial.dispose();
-      boltMaterial.dispose();
-      enemyBoltMaterial.dispose();
-    },
-    [
-      boltGeometry,
-      boltMaterial,
-      enemyBoltMaterial,
-      hostileGeometry,
-      hostileMaps,
-      hostileMaterial,
-    ],
-  );
+  useEffect(() => {
+    const enemyGroup = enemyGroupRef.current;
+    const projectileGroup = projectileGroupRef.current;
+    if (!enemyGroup || !projectileGroup) return;
 
-  useFrame(() => {
-    const enemyMesh = enemyMeshRef.current;
-    const boltMesh = boltMeshRef.current;
-    const enemyBoltMesh = enemyBoltMeshRef.current;
-    if (!enemyMesh || !boltMesh || !enemyBoltMesh) return;
-
-    const enemies = enemiesRef.current;
-    for (let i = 0; i < MAX_ENEMIES; i++) {
-      if (i < enemies.length) {
-        const enemy = enemies[i]!;
-        _dummy.position.set(enemy.position.x, 0, enemy.position.z);
-        _dummy.rotation.set(0, enemy.rotation, 0);
-        _dummy.scale.setScalar(1.12);
-      } else {
-        _dummy.position.set(0, -20, 0);
-        _dummy.scale.setScalar(0);
+    for (let k = 0; k < KIND_ORDER.length; k++) {
+      const pool = pools[KIND_ORDER[k]!];
+      for (let i = 0; i < pool.length; i++) {
+        enemyGroup.add(pool[i]!);
       }
-      _dummy.updateMatrix();
-      enemyMesh.setMatrixAt(i, _dummy.matrix);
     }
-    enemyMesh.instanceMatrix.needsUpdate = true;
-    enemyMesh.count = MAX_ENEMIES;
-    enemyMesh.frustumCulled = false;
+    for (let i = 0; i < playerBoltPool.length; i++) {
+      projectileGroup.add(playerBoltPool[i]!);
+      projectileGroup.add(enemyBoltPool[i]!);
+    }
+    for (let i = 0; i < superBoltPool.length; i++) {
+      projectileGroup.add(superBoltPool[i]!);
+    }
+
+    return () => {
+      enemyGroup.clear();
+      projectileGroup.clear();
+      disposeSharedAssets(assets);
+      novaMaterial.dispose();
+      novaGeometry.dispose();
+    };
+  }, [assets, pools, playerBoltPool, enemyBoltPool, superBoltPool, novaMaterial, novaGeometry]);
+
+  useFrame(({ clock }, delta) => {
+    const enemies = enemiesRef.current;
+    let interceptorUsed = 0;
+    let gunshipUsed = 0;
+    let droneUsed = 0;
+
+    for (let i = 0; i < enemies.length; i++) {
+      const enemy = enemies[i]!;
+      let mesh: THREE.Group | undefined;
+      if (enemy.kind === "interceptor") {
+        mesh = pools.interceptor[interceptorUsed++];
+      } else if (enemy.kind === "gunship") {
+        mesh = pools.gunship[gunshipUsed++];
+      } else {
+        mesh = pools.drone[droneUsed++];
+      }
+      if (!mesh) continue;
+
+      const bob =
+        enemy.kind === "drone"
+          ? Math.sin(clock.elapsedTime * 2.6 + enemy.strafePhase) * 0.14
+          : 0;
+      mesh.visible = true;
+      mesh.position.set(enemy.position.x, bob, enemy.position.z);
+      mesh.rotation.y = enemy.heading;
+
+      const spin = mesh.userData.spin as THREE.Object3D | undefined;
+      if (spin) spin.rotation.z += delta * 1.8;
+    }
+
+    for (let i = interceptorUsed; i < pools.interceptor.length; i++) {
+      pools.interceptor[i]!.visible = false;
+    }
+    for (let i = gunshipUsed; i < pools.gunship.length; i++) {
+      pools.gunship[i]!.visible = false;
+    }
+    for (let i = droneUsed; i < pools.drone.length; i++) {
+      pools.drone[i]!.visible = false;
+    }
 
     const projectiles = projectilesRef.current;
-    let playerBolt = 0;
-    let enemyBolt = 0;
+    let playerUsed = 0;
+    let enemyUsed = 0;
+    let superUsed = 0;
     for (let i = 0; i < projectiles.length; i++) {
       const projectile = projectiles[i]!;
-      _dummy.position.set(projectile.position.x, 0.06, projectile.position.z);
-      _boltDir.set(projectile.velocity.x, 0, projectile.velocity.z).normalize();
-      _dummy.quaternion.setFromUnitVectors(_up, _boltDir);
-      _dummy.scale.setScalar(1);
-      _dummy.updateMatrix();
-      if (projectile.owner === "enemy") {
-        if (enemyBolt < MAX_PROJECTILES) {
-          enemyBoltMesh.setMatrixAt(enemyBolt++, _dummy.matrix);
+      const mesh =
+        projectile.kind === "super"
+          ? superBoltPool[superUsed++]
+          : projectile.owner === "enemy"
+            ? enemyBoltPool[enemyUsed++]
+            : playerBoltPool[playerUsed++];
+      if (!mesh) continue;
+      mesh.visible = true;
+      mesh.position.set(projectile.position.x, 0.08, projectile.position.z);
+      mesh.rotation.y = Math.atan2(projectile.velocity.x, projectile.velocity.z);
+    }
+    for (let i = playerUsed; i < playerBoltPool.length; i++) {
+      playerBoltPool[i]!.visible = false;
+    }
+    for (let i = enemyUsed; i < enemyBoltPool.length; i++) {
+      enemyBoltPool[i]!.visible = false;
+    }
+    for (let i = superUsed; i < superBoltPool.length; i++) {
+      superBoltPool[i]!.visible = false;
+    }
+
+    const nova = novaRef.current;
+    const burst = superBurstRef.current;
+    if (nova && burst) {
+      if (!burst.active) {
+        nova.visible = false;
+        if (novaLightRef.current) novaLightRef.current.intensity = 0;
+      } else {
+        const t = burst.duration > 0 ? burst.age / burst.duration : 1;
+        if (t >= 1) {
+          nova.visible = false;
+          if (novaLightRef.current) novaLightRef.current.intensity = 0;
+        } else {
+          const scale = 1 + t * 7.5;
+          nova.visible = true;
+          nova.position.set(burst.x, 0.12, burst.z);
+          nova.rotation.x = -Math.PI / 2;
+          nova.scale.set(scale, scale, 1);
+          novaMaterial.opacity = (1 - t) * 0.85;
+          if (novaLightRef.current) {
+            novaLightRef.current.position.set(burst.x, 0.7, burst.z);
+            novaLightRef.current.intensity = (1 - t) * 10;
+          }
         }
-      } else if (playerBolt < MAX_PROJECTILES) {
-        boltMesh.setMatrixAt(playerBolt++, _dummy.matrix);
       }
     }
-    _dummy.position.set(0, -20, 0);
-    _dummy.quaternion.identity();
-    _dummy.scale.setScalar(0);
-    _dummy.updateMatrix();
-    for (let i = playerBolt; i < MAX_PROJECTILES; i++) {
-      boltMesh.setMatrixAt(i, _dummy.matrix);
-    }
-    for (let i = enemyBolt; i < MAX_PROJECTILES; i++) {
-      enemyBoltMesh.setMatrixAt(i, _dummy.matrix);
-    }
-    boltMesh.instanceMatrix.needsUpdate = true;
-    enemyBoltMesh.instanceMatrix.needsUpdate = true;
-    boltMesh.count = MAX_PROJECTILES;
-    enemyBoltMesh.count = MAX_PROJECTILES;
-    boltMesh.frustumCulled = false;
-    enemyBoltMesh.frustumCulled = false;
   });
 
   return (
     <>
-      <instancedMesh
-        ref={enemyMeshRef}
-        args={[hostileGeometry, hostileMaterial, MAX_ENEMIES]}
-        dispose={null}
-        name="hostile-fighters"
+      <group ref={enemyGroupRef} dispose={null} />
+      <group ref={projectileGroupRef} dispose={null} />
+      <mesh
+        ref={novaRef}
+        geometry={novaGeometry}
+        material={novaMaterial}
+        visible={false}
+        name="super-nova"
       />
-      <instancedMesh
-        ref={boltMeshRef}
-        args={[boltGeometry, boltMaterial, MAX_PROJECTILES]}
-        dispose={null}
-        name="bolts"
-      />
-      <instancedMesh
-        ref={enemyBoltMeshRef}
-        args={[boltGeometry, enemyBoltMaterial, MAX_PROJECTILES]}
-        dispose={null}
-        name="enemy-bolts"
-      />
+      <pointLight ref={novaLightRef} color="#67e8f9" intensity={0} distance={12} />
     </>
   );
 }
