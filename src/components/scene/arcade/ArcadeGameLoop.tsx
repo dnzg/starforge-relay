@@ -1,4 +1,4 @@
-import { useEffect, useRef, type RefObject } from "react";
+import { useEffect, useMemo, useRef, type RefObject } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import type { ArcadeInputState } from "../../../hooks/useArcadeInput";
@@ -7,8 +7,13 @@ import {
   KILLS_FOR_JUMP,
   resetArcadeUiForSector,
 } from "../../../lib/combat/arcadeUiRef";
+import {
+  createCombatVfxState,
+  type CombatVfxApi,
+} from "../../../lib/combat/combatVfx";
 import { PlayerShipMesh } from "./PlayerShipMesh";
 import { CombatMeshes } from "./CombatMeshes";
+import { CombatVfx } from "./CombatVfx";
 import { JumpGateMesh } from "./JumpGateMesh";
 import {
   createInitialPlayer,
@@ -64,6 +69,7 @@ function resetGameState(
   sectorKeyRef: RefObject<string>,
   sectorKillsRef: RefObject<number>,
   jumpGateRef: RefObject<JumpGateState>,
+  vfxApi: CombatVfxApi,
 ) {
   if (sectorKeyRef.current === sectorKey) return;
   sectorKeyRef.current = sectorKey;
@@ -76,6 +82,7 @@ function resetGameState(
     active: false,
     position: { x: 0, z: -18 },
   };
+  vfxApi.reset();
   resetArcadeUiForSector();
 
   const initialCount = Math.min(5, 2 + Math.floor(threatLevel / 2));
@@ -130,17 +137,20 @@ function resolveCollisions(
   callbacks: CombatCallbacks,
   sectorKillsRef: RefObject<number>,
   jumpGateRef: RefObject<JumpGateState>,
+  vfxApi: CombatVfxApi,
 ): void {
   const surviving: Enemy[] = [];
   for (let ei = 0; ei < enemies.length; ei++) {
     const enemy = enemies[ei]!;
     let hp = enemy.hp;
+    let hit = false;
 
     let pw = 0;
     for (let pi = 0; pi < projectiles.length; pi++) {
       const projectile = projectiles[pi]!;
       if (dist2(projectile.position, enemy.position) < 0.75) {
         hp -= 1;
+        hit = true;
       } else {
         projectiles[pw++] = projectile;
       }
@@ -148,6 +158,7 @@ function resolveCollisions(
     projectiles.length = pw;
 
     if (hp <= 0) {
+      vfxApi.spawnBurst(enemy.position.x, enemy.position.z, "enemy");
       callbacks.onEnemyKilled();
       sectorKillsRef.current += 1;
       if (
@@ -157,6 +168,9 @@ function resolveCollisions(
         jumpGateRef.current.active = true;
       }
     } else {
+      if (hit) {
+        vfxApi.spawnImpact(enemy.position.x, enemy.position.z);
+      }
       enemy.hp = hp;
       surviving.push(enemy);
     }
@@ -241,6 +255,7 @@ export function ArcadeGameLoop({
   const lookTarget = useRef(new THREE.Vector3());
   const camOffset = useRef(new THREE.Vector3());
   const jumpGateTriggeredRef = useRef(false);
+  const vfx = useMemo(() => createCombatVfxState(), []);
 
   useEffect(() => {
     jumpGateTriggeredRef.current = false;
@@ -254,8 +269,9 @@ export function ArcadeGameLoop({
       sectorKeyRef,
       sectorKillsRef,
       jumpGateRef,
+      vfx.api,
     );
-  }, [sectorKey, threatLevel]);
+  }, [sectorKey, threatLevel, vfx.api]);
 
   useFrame((_, delta) => {
     if (!enabled) return;
@@ -287,15 +303,18 @@ export function ArcadeGameLoop({
       fireCooldownRef.current = FIRE_COOLDOWN;
       const dirX = Math.sin(player.rotation);
       const dirZ = Math.cos(player.rotation);
+      const muzzleX = player.position.x + dirX * 0.8;
+      const muzzleZ = player.position.z + dirZ * 0.8;
       projectilesRef.current.push({
         id: nextIdRef.current++,
         position: {
-          x: player.position.x + dirX * 0.8,
-          z: player.position.z + dirZ * 0.8,
+          x: muzzleX,
+          z: muzzleZ,
         },
         velocity: { x: dirX * PROJECTILE_SPEED, z: dirZ * PROJECTILE_SPEED },
         ttl: PROJECTILE_TTL,
       });
+      vfx.api.spawnMuzzle(muzzleX, muzzleZ, dirX, dirZ);
     }
 
     updateProjectiles(projectilesRef.current, dt);
@@ -325,6 +344,7 @@ export function ArcadeGameLoop({
       callbacks,
       sectorKillsRef,
       jumpGateRef,
+      vfx.api,
     );
 
     if (!invulnRef.current) {
@@ -333,6 +353,7 @@ export function ArcadeGameLoop({
         if (dist2(player.position, enemy.position) < 1.05) {
           player.invulnTimer = 1.1;
           invulnRef.current = true;
+          vfx.api.spawnBurst(player.position.x, player.position.z, "player");
           callbacks.onPlayerHit(ENEMY_CONTACT_DAMAGE);
           break;
         }
@@ -376,6 +397,7 @@ export function ArcadeGameLoop({
     <>
       <PlayerShipMesh playerRef={playerRef} invulnRef={invulnRef} />
       <CombatMeshes enemiesRef={enemiesRef} projectilesRef={projectilesRef} />
+      <CombatVfx vfx={vfx} />
       <JumpGateMesh gateRef={jumpGateRef} />
     </>
   );

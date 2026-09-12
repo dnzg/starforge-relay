@@ -39,18 +39,66 @@ function createEnemyMesh(): THREE.Group {
   return group;
 }
 
-function createProjectileMesh(): THREE.Mesh {
-  const mesh = new THREE.Mesh(
-    new THREE.CapsuleGeometry(0.06, 0.35, 4, 8),
-    new THREE.MeshStandardMaterial({
-      color: "#fef08a",
-      emissive: "#facc15",
-      emissiveIntensity: 1.2,
-    }),
-  );
-  mesh.rotation.x = Math.PI / 2;
-  mesh.visible = false;
-  return mesh;
+function createProjectilePool(count: number): THREE.Group[] {
+  const coreGeo = new THREE.CapsuleGeometry(0.045, 0.42, 4, 8);
+  const glowGeo = new THREE.CapsuleGeometry(0.13, 0.72, 4, 8);
+  const trailGeo = new THREE.PlaneGeometry(0.2, 1.85);
+  const coreMat = new THREE.MeshBasicMaterial({
+    color: "#fff7ad",
+    toneMapped: false,
+  });
+  const glowMat = new THREE.MeshBasicMaterial({
+    color: "#facc15",
+    transparent: true,
+    opacity: 0.55,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    toneMapped: false,
+  });
+  const trailMat = new THREE.MeshBasicMaterial({
+    color: "#7dd3fc",
+    transparent: true,
+    opacity: 0.42,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+    toneMapped: false,
+  });
+  const haloMat = new THREE.MeshBasicMaterial({
+    color: "#fde68a",
+    transparent: true,
+    opacity: 0.35,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+    toneMapped: false,
+  });
+
+  return Array.from({ length: count }, () => {
+    const group = new THREE.Group();
+
+    const core = new THREE.Mesh(coreGeo, coreMat);
+    core.rotation.x = Math.PI / 2;
+    group.add(core);
+
+    const glow = new THREE.Mesh(glowGeo, glowMat);
+    glow.rotation.x = Math.PI / 2;
+    group.add(glow);
+
+    const trail = new THREE.Mesh(trailGeo, trailMat);
+    trail.rotation.x = Math.PI / 2;
+    trail.position.z = -0.85;
+    group.add(trail);
+
+    const halo = new THREE.Mesh(trailGeo, haloMat);
+    halo.rotation.y = Math.PI / 2;
+    halo.position.z = -0.7;
+    halo.scale.set(0.55, 1.15, 1);
+    group.add(halo);
+
+    group.visible = false;
+    return group;
+  });
 }
 
 interface CombatMeshesProps {
@@ -68,10 +116,7 @@ export function CombatMeshes({
     () => Array.from({ length: MAX_ENEMIES }, () => createEnemyMesh()),
     [],
   );
-  const projectilePool = useMemo(
-    () => Array.from({ length: MAX_PROJECTILES }, () => createProjectileMesh()),
-    [],
-  );
+  const projectilePool = useMemo(() => createProjectilePool(MAX_PROJECTILES), []);
 
   useFrame(() => {
     const enemyGroup = enemyGroupRef.current;
@@ -97,7 +142,8 @@ export function CombatMeshes({
       if (i < projectiles.length) {
         const projectile = projectiles[i]!;
         mesh.visible = true;
-        mesh.position.set(projectile.position.x, 0, projectile.position.z);
+        mesh.position.set(projectile.position.x, 0.08, projectile.position.z);
+        mesh.rotation.y = Math.atan2(projectile.velocity.x, projectile.velocity.z);
         if (!mesh.parent) projectileGroup.add(mesh);
       } else {
         mesh.visible = false;

@@ -1,0 +1,2 @@
+export const HYPERSPACE_MS = 1800;
+export const HYPERSPACE_SECONDS = HYPERSPACE_MS / 1000;

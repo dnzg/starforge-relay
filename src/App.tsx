@@ -28,7 +28,7 @@ function GameShell() {
         </div>
       ) : null}
 
-      <div className="viewport">
+      <div className={`viewport${hyperspaceActive ? " is-hyperspace" : ""}`}>
         <ArcadeScene
           sectorSeed={run?.sectorSeed ?? 42}
           sectorKey={sectorKey}

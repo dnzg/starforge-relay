@@ -85,7 +85,7 @@ function SceneContent(props: ArcadeSceneProps) {
       <fog attach="fog" args={["#050810", 28, 120]} />
       <SceneLighting planetPosition={planetPosition} />
 
-      <Starfield warp={hyperspaceActive ? 8 : 1} />
+      <Starfield warp={hyperspaceActive ? 14 : 1} />
       <Stars
         radius={120}
         depth={60}
@@ -93,7 +93,7 @@ function SceneContent(props: ArcadeSceneProps) {
         factor={2}
         saturation={0}
         fade
-        speed={hyperspaceActive ? 4 : 0.3}
+        speed={hyperspaceActive ? 8 : 0.3}
       />
 
       <Planet
