@@ -101,6 +101,43 @@ h3 {
   -webkit-user-select: none;
 }
 
+.viewport.is-hyperspace::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background: radial-gradient(
+    circle at 50% 42%,
+    rgba(248, 250, 252, 0.38) 0%,
+    rgba(125, 211, 252, 0.22) 28%,
+    rgba(14, 116, 144, 0.1) 58%,
+    transparent 78%
+  );
+  animation: hyperspace-wash 1.8s ease-out forwards;
+}
+
+@keyframes hyperspace-wash {
+  0% {
+    opacity: 0;
+  }
+  8% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+  80% {
+    opacity: 0.5;
+  }
+  90% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
 .hud-overlay {
   position: absolute;
   inset: 0;

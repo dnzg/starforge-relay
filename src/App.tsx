@@ -48,7 +48,10 @@ function GameShell() {
         </div>
       ) : null}
 
-      <div className="viewport" onContextMenu={(event) => event.preventDefault()}>
+      <div
+        className={`viewport${hyperspaceActive ? " is-hyperspace" : ""}`}
+        onContextMenu={(event) => event.preventDefault()}
+      >
         <ArcadeScene
           sectorSeed={run?.sectorSeed ?? 42}
           sectorKey={sectorKey}

@@ -216,12 +216,51 @@ function createDroneMesh(assets: SharedEnemyAssets): THREE.Group {
   return group;
 }
 
-function createProjectileMesh(assets: SharedEnemyAssets): THREE.Mesh {
-  const mesh = new THREE.Mesh(assets.bolt, assets.playerBolt);
-  mesh.rotation.x = Math.PI / 2;
-  mesh.visible = false;
-  mesh.userData.owner = "player";
-  return mesh;
+function createGlowBolt(owner: "player" | "enemy"): THREE.Group {
+  const group = new THREE.Group();
+  const core = new THREE.Mesh(
+    new THREE.CapsuleGeometry(0.045, 0.42, 4, 8),
+    new THREE.MeshBasicMaterial({
+      color: owner === "enemy" ? "#fecdd3" : "#fff7ad",
+      toneMapped: false,
+    }),
+  );
+  core.rotation.x = Math.PI / 2;
+  group.add(core);
+
+  const glow = new THREE.Mesh(
+    new THREE.CapsuleGeometry(0.13, 0.72, 4, 8),
+    new THREE.MeshBasicMaterial({
+      color: owner === "enemy" ? "#fb7185" : "#facc15",
+      transparent: true,
+      opacity: 0.55,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      toneMapped: false,
+    }),
+  );
+  glow.rotation.x = Math.PI / 2;
+  group.add(glow);
+
+  const trail = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.2, 1.85),
+    new THREE.MeshBasicMaterial({
+      color: owner === "enemy" ? "#fda4af" : "#7dd3fc",
+      transparent: true,
+      opacity: 0.42,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+      toneMapped: false,
+    }),
+  );
+  trail.rotation.x = Math.PI / 2;
+  trail.position.z = -0.85;
+  group.add(trail);
+
+  group.visible = false;
+  group.userData.owner = owner;
+  return group;
 }
 
 const KIND_ORDER: EnemyKind[] = ["interceptor", "gunship", "drone"];
@@ -250,9 +289,13 @@ export function CombatMeshes({
     }),
     [assets],
   );
-  const projectilePool = useMemo(
-    () => Array.from({ length: MAX_PROJECTILES }, () => createProjectileMesh(assets)),
-    [assets],
+  const playerBoltPool = useMemo(
+    () => Array.from({ length: MAX_PROJECTILES }, () => createGlowBolt("player")),
+    [],
+  );
+  const enemyBoltPool = useMemo(
+    () => Array.from({ length: MAX_PROJECTILES }, () => createGlowBolt("enemy")),
+    [],
   );
 
   useEffect(() => {
@@ -266,8 +309,9 @@ export function CombatMeshes({
         enemyGroup.add(pool[i]!);
       }
     }
-    for (let i = 0; i < projectilePool.length; i++) {
-      projectileGroup.add(projectilePool[i]!);
+    for (let i = 0; i < playerBoltPool.length; i++) {
+      projectileGroup.add(playerBoltPool[i]!);
+      projectileGroup.add(enemyBoltPool[i]!);
     }
 
     return () => {
@@ -275,7 +319,7 @@ export function CombatMeshes({
       projectileGroup.clear();
       disposeSharedAssets(assets);
     };
-  }, [assets, pools, projectilePool]);
+  }, [assets, pools, playerBoltPool, enemyBoltPool]);
 
   useFrame(({ clock }, delta) => {
     const enemies = enemiesRef.current;
@@ -318,20 +362,24 @@ export function CombatMeshes({
     }
 
     const projectiles = projectilesRef.current;
-    for (let i = 0; i < projectilePool.length; i++) {
-      const mesh = projectilePool[i]!;
-      if (i < projectiles.length) {
-        const projectile = projectiles[i]!;
-        mesh.visible = true;
-        mesh.position.set(projectile.position.x, 0, projectile.position.z);
-        if (mesh.userData.owner !== projectile.owner) {
-          mesh.material =
-            projectile.owner === "enemy" ? assets.hostileBolt : assets.playerBolt;
-          mesh.userData.owner = projectile.owner;
-        }
-      } else {
-        mesh.visible = false;
-      }
+    let playerUsed = 0;
+    let enemyUsed = 0;
+    for (let i = 0; i < projectiles.length; i++) {
+      const projectile = projectiles[i]!;
+      const mesh =
+        projectile.owner === "enemy"
+          ? enemyBoltPool[enemyUsed++]
+          : playerBoltPool[playerUsed++];
+      if (!mesh) continue;
+      mesh.visible = true;
+      mesh.position.set(projectile.position.x, 0.08, projectile.position.z);
+      mesh.rotation.y = Math.atan2(projectile.velocity.x, projectile.velocity.z);
+    }
+    for (let i = playerUsed; i < playerBoltPool.length; i++) {
+      playerBoltPool[i]!.visible = false;
+    }
+    for (let i = enemyUsed; i < enemyBoltPool.length; i++) {
+      enemyBoltPool[i]!.visible = false;
     }
   });
 

@@ -24,7 +24,7 @@ function SceneContent({
       <directionalLight position={[5, 3, 2]} intensity={1.4} color="#ffe2b8" />
       <pointLight position={[-6, -2, -4]} intensity={0.6} color="#4da3ff" />
 
-      <Starfield warp={hyperspaceActive ? 8 : 1} />
+      <Starfield warp={hyperspaceActive ? 14 : 1} />
       <Stars
         radius={80}
         depth={40}
@@ -32,7 +32,7 @@ function SceneContent({
         factor={2}
         saturation={0}
         fade
-        speed={hyperspaceActive ? 4 : 0.3}
+        speed={hyperspaceActive ? 8 : 0.3}
       />
 
       <Planet seed={sectorSeed} textureUrl={planetTextureUrl} />

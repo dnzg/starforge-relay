@@ -91,7 +91,7 @@ function SceneContent(props: ArcadeSceneProps) {
         factor={2.2}
         saturation={0}
         fade
-        speed={hyperspaceActive ? 6 : 0.3}
+        speed={hyperspaceActive ? 8 : 0.3}
       />
 
       <Planet
