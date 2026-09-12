@@ -11,6 +11,13 @@ import { PlayerShipMesh } from "./PlayerShipMesh";
 import { CombatMeshes } from "./CombatMeshes";
 import { JumpGateMesh } from "./JumpGateMesh";
 import {
+  applyArcadeFlight,
+  CAM_BACK,
+  CAM_HEIGHT,
+  headingForwardX,
+  headingForwardZ,
+} from "./arcadeFlight";
+import {
   createInitialPlayer,
   dist2,
   type CombatCallbacks,
@@ -265,11 +272,7 @@ export function ArcadeGameLoop({
     const input = getInput();
     const speed = PLAYER_SPEED * (input.boost ? BOOST_MULT : 1) * dt;
 
-    if (input.moveX !== 0 || input.moveY !== 0) {
-      player.position.x += input.moveX * speed;
-      player.position.z += input.moveY * speed;
-      player.rotation = Math.atan2(input.moveX, input.moveY);
-    }
+    applyArcadeFlight(player, input, speed, dt);
 
     player.position.x = THREE.MathUtils.clamp(
       player.position.x,
@@ -285,8 +288,8 @@ export function ArcadeGameLoop({
     fireCooldownRef.current = Math.max(0, fireCooldownRef.current - dt);
     if (input.firePressed && fireCooldownRef.current <= 0) {
       fireCooldownRef.current = FIRE_COOLDOWN;
-      const dirX = Math.sin(player.rotation);
-      const dirZ = Math.cos(player.rotation);
+      const dirX = headingForwardX(player.rotation);
+      const dirZ = headingForwardZ(player.rotation);
       projectilesRef.current.push({
         id: nextIdRef.current++,
         position: {
@@ -356,10 +359,11 @@ export function ArcadeGameLoop({
       sectorKillsRef.current,
     );
 
+    const yaw = player.rotation;
     camOffset.current.set(
-      -Math.sin(player.rotation) * 5.5,
-      3.2,
-      -Math.cos(player.rotation) * 5.5,
+      Math.sin(yaw) * CAM_BACK,
+      CAM_HEIGHT + player.pitch * 0.85,
+      Math.cos(yaw) * CAM_BACK,
     );
     cameraTarget.current.set(
       player.position.x + camOffset.current.x,
@@ -368,7 +372,11 @@ export function ArcadeGameLoop({
     );
     const lerpFactor = 1 - Math.pow(0.001, dt);
     camera.position.lerp(cameraTarget.current, lerpFactor);
-    lookTarget.current.set(player.position.x, 0.4, player.position.z);
+    lookTarget.current.set(
+      player.position.x - Math.sin(yaw) * 1.6,
+      0.45 - player.pitch * 0.55,
+      player.position.z - Math.cos(yaw) * 1.6,
+    );
     camera.lookAt(lookTarget.current);
   });
 

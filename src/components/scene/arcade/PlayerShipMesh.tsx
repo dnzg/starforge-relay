@@ -16,16 +16,23 @@ export function PlayerShipMesh({ playerRef, invulnRef }: PlayerShipMeshProps) {
     const player = playerRef.current;
     if (!group || !player) return;
 
-    group.position.set(player.position.x, 0, player.position.z);
-    group.rotation.y = player.rotation;
+    if (group.rotation.order !== "YXZ") {
+      group.rotation.order = "YXZ";
+    }
 
+    group.position.set(player.position.x, -player.pitch * 0.35, player.position.z);
+    group.rotation.y = player.rotation;
+    group.rotation.x = player.pitch;
+    group.rotation.z = player.roll;
+
+    const invulnDt = Math.min(delta, 0.05);
     if (invulnRef.current) {
       group.visible = Math.floor(player.invulnTimer * 20) % 2 === 0;
     } else {
       group.visible = true;
     }
 
-    player.invulnTimer = Math.max(0, player.invulnTimer - delta);
+    player.invulnTimer = Math.max(0, player.invulnTimer - invulnDt);
     invulnRef.current = player.invulnTimer > 0;
   });
 

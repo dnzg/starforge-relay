@@ -28,7 +28,7 @@ function GameShell() {
         </div>
       ) : null}
 
-      <div className="viewport">
+      <div className="viewport" onContextMenu={(event) => event.preventDefault()}>
         <ArcadeScene
           sectorSeed={run?.sectorSeed ?? 42}
           sectorKey={sectorKey}

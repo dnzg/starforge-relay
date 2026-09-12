@@ -41,7 +41,7 @@ export function OnboardingOverlay({ onDismiss }: OnboardingOverlayProps) {
 
         <ul className="onboarding-list">
           <li>
-            <strong>Move</strong> — WASD or Arrow keys (touch D-pad on mobile)
+            <strong>Fly</strong> — W dive / S climb / A/D turn (touch D-pad on mobile)
           </li>
           <li>
             <strong>Boost</strong> — Hold Shift

@@ -9,7 +9,7 @@ export function ControlHintStrip({ visible, onDismiss }: ControlHintStripProps) 
   return (
     <div className="control-hint-strip">
       <span>
-        WASD / Arrows fly · Shift boost · Space fire · Clear hostiles → Jump gate
+        W dive · S climb · A/D turn · Shift boost · Space fire · Clear hostiles → Jump gate
       </span>
       <button type="button" className="control-hint-dismiss" onClick={onDismiss}>
         Dismiss

@@ -23,6 +23,8 @@ export interface Enemy {
 export interface PlayerState {
   position: Vec2;
   rotation: number;
+  pitch: number;
+  roll: number;
   invulnTimer: number;
 }
 
@@ -48,7 +50,13 @@ export interface ArcadeGameRefs {
 }
 
 export function createInitialPlayer(): PlayerState {
-  return { position: { x: 0, z: 0 }, rotation: 0, invulnTimer: 0 };
+  return {
+    position: { x: 0, z: 0 },
+    rotation: 0,
+    pitch: 0,
+    roll: 0,
+    invulnTimer: 0,
+  };
 }
 
 export function dist2(a: Vec2, b: Vec2): number {
