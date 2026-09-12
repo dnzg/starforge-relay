@@ -73,6 +73,7 @@ export function GarageOverlay({ onClose }: GarageOverlayProps) {
         <Canvas
           camera={{ position: [1.8, 1.15, 2.3], fov: 42, near: 0.1, far: 40 }}
           dpr={[1, 1.5]}
+          resize={{ debounce: 0 }}
           gl={{ antialias: true, alpha: false }}
           style={{ width: "100%", height: "100%" }}
         >

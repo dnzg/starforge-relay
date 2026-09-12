@@ -209,12 +209,11 @@ export function HUD({
             <h1>Sector Combat</h1>
           </div>
         </div>
-        <StatusPanel compact />
+        <div className="hud-status-col">
+          <StatusPanel compact />
+          <SectorProgress />
+        </div>
       </header>
-
-      <div className="hud-objective-stack">
-        <SectorProgress />
-      </div>
 
       <Minimap />
       <ControlHintStrip visible={showHintStrip} onDismiss={dismissHints} />

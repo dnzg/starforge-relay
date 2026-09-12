@@ -15,8 +15,11 @@
   --shadow-border-hover: 0 0 0 1px oklch(1 0 0 / 0.13);
   --ease-out: cubic-bezier(0.2, 0, 0, 1);
   --radius: 0.75rem;
-  --space-safe-top: env(safe-area-inset-top, 0px);
-  --space-safe-bottom: env(safe-area-inset-bottom, 0px);
+  --space-safe-top: max(
+    env(safe-area-inset-top, 0px),
+    calc(var(--tg-safe-area-inset-top, 0px) + var(--tg-content-safe-area-inset-top, 0px))
+  );
+  --space-safe-bottom: max(env(safe-area-inset-bottom, 0px), var(--tg-safe-area-inset-bottom, 0px));
   --radar-size: 10.5rem;
   --radar-gap: 0.55rem;
   font-family: var(--font-body);
@@ -41,6 +44,11 @@ body,
   width: 100%;
   height: 100%;
   overflow: hidden;
+}
+
+html,
+body {
+  overscroll-behavior: none;
 }
 
 body {
@@ -184,7 +192,16 @@ h3 {
   justify-content: space-between;
   align-items: flex-start;
   gap: 0.75rem;
+  pointer-events: none;
   animation: hudEnter 420ms var(--ease-out) both;
+}
+
+.hud-status-col {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.45rem;
+  min-width: 0;
 }
 
 .hud-brand-row {
@@ -466,19 +483,6 @@ h3 {
   background: var(--color-accent-hot);
 }
 
-.hud-objective-stack {
-  position: absolute;
-  left: 50%;
-  top: max(4.6rem, calc(var(--space-safe-top) + 4.2rem));
-  transform: translateX(-50%);
-  z-index: 5;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.4rem;
-  pointer-events: none;
-}
-
 .sector-progress {
   display: flex;
   flex-direction: column;
@@ -495,6 +499,7 @@ h3 {
   color: var(--color-text);
   text-align: center;
   white-space: nowrap;
+  pointer-events: none;
 }
 
 .sector-progress-tip {
@@ -1127,6 +1132,7 @@ h3 {
 
 .touch-actions {
   display: flex;
+  flex-direction: column;
   align-items: flex-end;
   gap: 0.55rem;
 }
@@ -1134,6 +1140,7 @@ h3 {
 .touch-super {
   min-width: 72px;
   min-height: 72px;
+  margin-right: 3rem;
   border: 0;
   border-radius: 50%;
   background: linear-gradient(160deg, #334155, #1e293b);
@@ -1331,7 +1338,6 @@ h3 {
 .hud-overlay.gameover-is-open .hud-chrome,
 .hud-overlay.gameover-is-open .log-toast,
 .hud-overlay.gameover-is-open .log-drawer,
-.hud-overlay.gameover-is-open .hud-objective-stack,
 .hud-overlay.gameover-is-open .objective-marker,
 .hud-overlay.gameover-is-open .control-hint-strip,
 .hud-overlay.gameover-is-open .touch-controls,
@@ -1385,7 +1391,6 @@ h3 {
 
 .hud-overlay.garage-is-open .hud-chrome,
 .hud-overlay.garage-is-open .log-toast,
-.hud-overlay.garage-is-open .hud-objective-stack,
 .hud-overlay.garage-is-open .objective-marker,
 .hud-overlay.garage-is-open .control-hint-strip,
 .hud-overlay.garage-is-open .radar {
@@ -1597,7 +1602,7 @@ h3 {
 
   .control-hint-strip {
     bottom: max(13.2rem, calc(var(--space-safe-bottom) + 12.6rem));
-    max-width: min(18rem, calc(100% - 7.5rem - var(--radar-size)));
+    max-width: min(18rem, calc(100% - 2.25rem - var(--radar-size)));
   }
 
   .radar {
@@ -1606,6 +1611,7 @@ h3 {
 
   .touch-controls {
     display: flex;
+    bottom: max(5.2rem, calc(var(--space-safe-bottom) + 4.8rem));
   }
 
   .hud-chrome-bottom {
@@ -1622,10 +1628,6 @@ h3 {
   .garage-panel {
     top: auto;
     max-height: 46vh;
-  }
-
-  .touch-controls {
-    bottom: max(4.6rem, calc(var(--space-safe-bottom) + 4.2rem));
   }
 }
 
@@ -1648,7 +1650,7 @@ h3 {
 
   .sector-progress {
     white-space: nowrap;
-    max-width: min(22rem, calc(100vw - 1.5rem));
+    max-width: 100%;
   }
 
   .sector-progress-tip {
@@ -1677,8 +1679,7 @@ h3 {
   }
 
   .control-hint-strip {
-    bottom: max(13.2rem, calc(var(--space-safe-bottom) + 12.6rem));
-    max-width: min(18rem, calc(100% - 7.5rem - var(--radar-size)));
+    display: none;
   }
 
   .radar {

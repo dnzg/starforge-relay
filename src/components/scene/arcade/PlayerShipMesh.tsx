@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useRef, type RefObject } from "react";
+import { Suspense, useLayoutEffect, useMemo, useRef, type RefObject } from "react";
 import { useFrame } from "@react-three/fiber";
+import { useTexture } from "@react-three/drei";
 import * as THREE from "three";
 import type { PlayerState } from "./types";
 import { useShipLoadout } from "../../../hooks/useShipLoadout";
@@ -19,6 +20,20 @@ interface PlayerShipMeshProps {
   invulnRef?: RefObject<boolean>;
   boostIntensityRef?: RefObject<number>;
   preview?: boolean;
+}
+
+function PaintedShipLivery({
+  url,
+  materials,
+}: {
+  url: string;
+  materials: { hull: THREE.MeshStandardMaterial; wing: THREE.MeshStandardMaterial };
+}) {
+  const map = useTexture(url);
+  useLayoutEffect(() => {
+    applyShipLiveryMap(materials, map);
+  }, [map, materials]);
+  return null;
 }
 
 function applyAfterburner(
@@ -174,19 +189,7 @@ export function PlayerShipMesh({
     return { hull, wing, glass };
   }, [canopyMap, hullMaps, wingMaps]);
 
-  useEffect(() => {
-    if (!loadout.textureUrl) return;
-    const loader = new THREE.TextureLoader();
-    loader.crossOrigin = "anonymous";
-    const texture = loader.load(loadout.textureUrl, (map) => {
-      applyShipLiveryMap(materials, map);
-    });
-    return () => {
-      texture.dispose();
-    };
-  }, [loadout.textureUrl, materials]);
-
-  useEffect(
+  useLayoutEffect(
     () => () => {
       hullMaps.dispose();
       wingMaps.dispose();
@@ -291,6 +294,11 @@ export function PlayerShipMesh({
 
   return (
     <group ref={groupRef} name="player-fighter" scale={1.28}>
+      <Suspense fallback={null}>
+        {loadout.textureUrl ? (
+          <PaintedShipLivery url={loadout.textureUrl} materials={materials} />
+        ) : null}
+      </Suspense>
       <mesh dispose={null} position={[0, 0.07, 0.02]} rotation={[Math.PI / 2, 0, 0]} material={materials.hull}>
         <capsuleGeometry args={[0.15, 1.05, 6, 12]} />
       </mesh>

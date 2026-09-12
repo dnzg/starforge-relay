@@ -79,6 +79,12 @@
     }
 
     .slide > *:not(.slide-bg):not(.footer-note) { position: relative; z-index: 1; max-width: 52rem; }
+    .slide > a.live-url {
+      max-width: fit-content;
+      width: max-content;
+      align-self: flex-start;
+      flex: 0 0 auto;
+    }
 
     .eyebrow {
       font-family: var(--font-heading);
@@ -369,6 +375,40 @@
       text-transform: uppercase;
     }
 
+
+    .live-url {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      margin-top: 1.35rem;
+      width: fit-content;
+      max-width: min(100%, 22rem);
+      align-self: flex-start;
+      font-family: var(--font-heading);
+      font-size: 0.72rem;
+      letter-spacing: 0.04em;
+      text-transform: none;
+      color: var(--color-cyan);
+      border: 1px solid color-mix(in srgb, var(--color-cyan) 35%, transparent);
+      background: rgba(125, 211, 252, 0.08);
+      border-radius: 999px;
+      padding: 0.32rem 0.65rem;
+      text-decoration: none;
+      line-height: 1.2;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      backdrop-filter: blur(8px);
+    }
+    .live-url .dot {
+      flex: 0 0 auto;
+      width: 0.4rem;
+      height: 0.4rem;
+      border-radius: 999px;
+      background: #3dd68c;
+      box-shadow: 0 0 10px #3dd68caa;
+    }
+
     .one-liner {
       margin-top: 1.2rem;
       font-family: var(--font-heading);
@@ -395,7 +435,11 @@
       <h1>An AI-native Telegram arcade</h1>
       <p class="one-liner">where the <span class="accent">universe is the content pipeline</span>.</p>
       <p class="lead">Fly. Fight. Jump sectors. Every world generated — and cached — on the fly.</p>
-      <p class="footer-note">Slide 1 / 5 · then live demo</p>
+      <a class="live-url" href="https://starforge-relay.onrender.com" target="_blank" rel="noopener">
+        <span class="dot" aria-hidden="true"></span>
+        Live on Render
+      </a>
+      <p class="footer-note">Slide 1 / 5 · then Telegram Mini App demo</p>
     </section>
 
     <!-- 2 Problem -->
@@ -457,16 +501,16 @@
       <div class="stack-row">
         <span class="chip hot">Fal.ai</span>
         <span class="chip hot">x.ai Voice</span>
+        <span class="chip hot">Render</span>
+        <span class="chip hot">Telegram Mini App</span>
         <span class="chip">Convex</span>
         <span class="chip">Daytona</span>
-        <span class="chip">Render</span>
-        <span class="chip">Telegram Mini App</span>
       </div>
       <div class="panel">
         <ul class="clean">
           <li><span class="tag">Money</span><span>Stars buy taste &amp; time — cosmetics, energy, AI rerolls — not damage.</span></li>
           <li><span class="tag">Moat</span><span>Seeded AI worlds + cache = infinite look without infinite cost.</span></li>
-          <li><span class="tag">Distro</span><span>Zero install in Telegram. Deep-link a sector, challenge a friend.</span></li>
+          <li><span class="tag">Ship</span><span>Live on Render · auto-deploy from GitHub main · open in Telegram Mini App.</span></li>
         </ul>
       </div>
       <div class="ai-row">
@@ -479,8 +523,8 @@
     <!-- 5 Demo checklist -->
     <section class="slide center-copy" data-i="4">
       <div class="slide-bg" style="background-image:url('assets/bg-combat.png')"></div>
-      <p class="eyebrow">Live demo — watch for</p>
-      <h2>I’ll play. You look for these beats.</h2>
+      <p class="eyebrow">Live demo — Telegram Mini App</p>
+      <h2>I’ll play in Telegram. You look for these beats.</h2>
       <ol class="demo-list">
         <li>
           <span class="n">1</span>
@@ -490,7 +534,7 @@
           <span class="n">2</span>
           <div class="line">
             Gate jump → new sector texture
-            <span class="sub">Generated / Cached</span>
+            <span class="sub">Fal · Generated / Cached</span>
           </div>
         </li>
         <li>
@@ -502,7 +546,11 @@
           <div class="line">Super attack when mana is full</div>
         </li>
       </ol>
-      <p class="lead" style="margin-top:1.4rem">Open the Mini App. No slides after this.</p>
+      <a class="live-url" href="https://starforge-relay.onrender.com" target="_blank" rel="noopener" style="margin-top:1.5rem">
+        <span class="dot" aria-hidden="true"></span>
+        starforge-relay.onrender.com
+      </a>
+      <p class="lead" style="margin-top:1rem">Open the Mini App in Telegram. No slides after this.</p>
       <p class="footer-note">Slide 5 / 5 · go live</p>
     </section>
 
