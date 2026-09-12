@@ -1,0 +1,65 @@
+import { Hono } from "hono";
+import { cors } from "hono/cors";
+import { serveStatic } from "@hono/node-server/serve-static";
+import { interpretVoiceInput } from "../shared/commandInterpreter.js";
+import { handleSectorArtRequest } from "../shared/falSectorArtServer.js";
+import {
+  buildVoiceStatus,
+  createXaiEphemeralToken,
+} from "../shared/voiceServer.js";
+import type { ServerEnv } from "./env.js";
+
+export function createApp(env: ServerEnv) {
+  const app = new Hono();
+
+  app.use("/api/*", cors());
+
+  app.get("/api/health", (c) =>
+    c.json({
+      ok: true,
+      falConfigured: Boolean(env.falKey?.trim()),
+      xaiConfigured: Boolean(env.xaiApiKey?.trim()),
+    }),
+  );
+
+  app.post("/api/sector-art", async (c) => {
+    const body = await c.req.text();
+    const result = await handleSectorArtRequest(body, env.falKey);
+    return c.json(result);
+  });
+
+  app.get("/api/sector-art", async (c) => {
+    const seed = c.req.query("seed");
+    const body = seed ? JSON.stringify({ seed: Number(seed) }) : "";
+    const result = await handleSectorArtRequest(body, env.falKey);
+    return c.json(result);
+  });
+
+  app.get("/api/voice/status", (c) => {
+    return c.json(buildVoiceStatus(env.xaiApiKey, env.falKey));
+  });
+
+  app.post("/api/voice/token", async (c) => {
+    const tokenPayload = await createXaiEphemeralToken(env.xaiApiKey);
+    if (!tokenPayload.token) {
+      return c.json(tokenPayload, 503);
+    }
+    return c.json(tokenPayload);
+  });
+
+  app.post("/api/voice/interpret", async (c) => {
+    const body = (await c.req.json().catch(() => ({}))) as { text?: string };
+    const text = body.text?.trim() ?? "";
+    if (!text) {
+      return c.json({ error: "text is required" }, 400);
+    }
+    const result = await interpretVoiceInput(text, env.xaiApiKey);
+    return c.json(result);
+  });
+
+  if (env.serveStatic) {
+    app.use("/*", serveStatic({ root: `./${env.distDir}` }));
+  }
+
+  return app;
+}

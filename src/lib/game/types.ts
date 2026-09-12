@@ -47,5 +47,11 @@ export interface GameClient {
   sendCommand: (
     command: string,
     source?: "text" | "voice",
+    options?: { shipPreamble?: string; heardText?: string },
   ) => Promise<CommandResult | null>;
+  appendShipMessage: (
+    heardText: string,
+    shipReply: string,
+    source?: "text" | "voice",
+  ) => Promise<void>;
 }

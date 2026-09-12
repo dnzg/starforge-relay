@@ -1,12 +1,13 @@
 import { useCallback } from "react";
 import { useGame } from "../../providers/GameProvider";
+import { interpretVoiceTranscript } from "../../lib/voice";
 import { StatusPanel } from "./StatusPanel";
 import { TranscriptPanel } from "./TranscriptPanel";
 import { CommandInput } from "./CommandInput";
 import { MicButton } from "./MicButton";
 
 export function HUD() {
-  const { run, loading, sendCommand } = useGame();
+  const { run, loading, sendCommand, appendShipMessage } = useGame();
   const disabled = loading || !run || run.status !== "active";
 
   const handleText = useCallback(
@@ -18,9 +19,17 @@ export function HUD() {
 
   const handleVoice = useCallback(
     async (transcript: string) => {
-      await sendCommand(transcript, "voice");
+      const interpreted = await interpretVoiceTranscript(transcript);
+      if (interpreted.command) {
+        await sendCommand(interpreted.command, "voice", {
+          shipPreamble: interpreted.shipReply,
+          heardText: transcript,
+        });
+        return;
+      }
+      await appendShipMessage(transcript, interpreted.shipReply, "voice");
     },
-    [sendCommand],
+    [appendShipMessage, sendCommand],
   );
 
   return (

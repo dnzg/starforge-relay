@@ -18,6 +18,11 @@ interface GameContextValue extends GameClient {
   lastHyperspaceAt: number;
   textureLoading: boolean;
   textureStatus: string;
+  appendShipMessage: (
+    heardText: string,
+    shipReply: string,
+    source?: "text" | "voice",
+  ) => Promise<void>;
 }
 
 const GameContext = createContext<GameContextValue | null>(null);
@@ -98,8 +103,12 @@ export function GameProvider({
   }, [client.run, loadSectorAssets]);
 
   const sendCommand = useCallback(
-    async (command: string, source: "text" | "voice" = "text") => {
-      const result = await client.sendCommand(command, source);
+    async (
+      command: string,
+      source: "text" | "voice" = "text",
+      options?: { shipPreamble?: string; heardText?: string },
+    ) => {
+      const result = await client.sendCommand(command, source, options);
       if (result?.hyperspaceTrigger || result?.run.hyperspaceActive) {
         setHyperspaceActive(true);
         setLastHyperspaceAt(Date.now());
@@ -111,6 +120,17 @@ export function GameProvider({
     [client],
   ) as GameClient["sendCommand"];
 
+  const appendShipMessage = useCallback(
+    async (
+      heardText: string,
+      shipReply: string,
+      source: "text" | "voice" = "voice",
+    ) => {
+      await client.appendShipMessage(heardText, shipReply, source);
+    },
+    [client],
+  );
+
   const value: GameContextValue = {
     run: client.run,
     logs: client.logs,
@@ -118,6 +138,7 @@ export function GameProvider({
     backend: client.backend,
     startRun: client.startRun.bind(client),
     sendCommand,
+    appendShipMessage,
     hyperspaceActive,
     lastHyperspaceAt,
     textureLoading,

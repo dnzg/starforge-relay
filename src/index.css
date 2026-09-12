@@ -276,6 +276,24 @@ body {
   gap: 0.35rem;
 }
 
+.voice-link {
+  margin: 0;
+  font-size: 0.72rem;
+  letter-spacing: 0.03em;
+}
+
+.voice-link-xai {
+  color: #86efac;
+}
+
+.voice-link-browser {
+  color: #fcd34d;
+}
+
+.voice-link-text {
+  color: #94a3b8;
+}
+
 .mic-button,
 .mic-mock,
 .command-form button,

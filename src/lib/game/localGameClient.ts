@@ -15,6 +15,11 @@ function nextRunId(): string {
 export function createLocalGameClient(): GameClient & {
   subscribe: (listener: () => void) => () => void;
   setPlanetTextureUrl: (url: string | null | undefined) => void;
+  appendShipMessage: (
+    heardText: string,
+    shipReply: string,
+    source?: "text" | "voice",
+  ) => Promise<void>;
 } {
   let run: RunState | null = null;
   let logs: CommandLogEntry[] = [];
@@ -64,9 +69,27 @@ export function createLocalGameClient(): GameClient & {
       notify();
     },
 
+    async appendShipMessage(
+      heardText: string,
+      shipReply: string,
+      source: "text" | "voice" = "voice",
+    ) {
+      logs = [
+        ...logs,
+        {
+          command: heardText,
+          source,
+          response: shipReply,
+          timestamp: Date.now(),
+        },
+      ];
+      notify();
+    },
+
     async sendCommand(
       command: string,
       source: "text" | "voice" = "text",
+      options?: { shipPreamble?: string; heardText?: string },
     ): Promise<CommandResult | null> {
       if (!run) return null;
       if (run.status !== "active") {
@@ -93,9 +116,18 @@ export function createLocalGameClient(): GameClient & {
 
       const result = resolveCommand(verb, run);
       run = { ...run, ...result.run };
+      const heard = options?.heardText ?? command;
+      const combinedResponse = options?.shipPreamble
+        ? `${options.shipPreamble}\n${result.response}`
+        : result.response;
       logs = [
         ...logs,
-        { command, source, response: result.response, timestamp: Date.now() },
+        {
+          command: heard,
+          source,
+          response: combinedResponse,
+          timestamp: Date.now(),
+        },
       ];
       notify();
       return result;

@@ -22,7 +22,7 @@ Type `scan` or tap the **scan** chip. The transcript and status panel update imm
 | Frontend | Vite + React + TypeScript | Ready |
 | 3D viewport | React Three Fiber + drei + Three.js | Ready |
 | Backend | Convex schema + mutations/queries | Stubbed, ready for `npx convex dev` |
-| Voice | Text always works; browser speech + x.ai stub | Stub |
+| Voice | x.ai realtime + `/api/voice/*` + browser speech + text | Wired (graceful fallback) |
 | Sector art | `generateSectorArt(seed)` → Fal `flux/schnell` via `/api/sector-art` | Wired (graceful fallback) |
 | Worker | Daytona sector pipeline + local CLI | Runnable (`npm run worker:sector`) |
 | Telegram | `window.Telegram.WebApp` bootstrap + browser fallback | Ready |
@@ -33,6 +33,18 @@ Type `scan` or tap the **scan** chip. The transcript and status panel update imm
 2. Resolver handles core verbs (`convex/commandResolver.ts`, mirrored in `src/lib/game/`)
 3. Run state + transcript update
 4. `jump` triggers hyperspace streaks in the 3D scene
+
+### Voice (x.ai + fallbacks)
+
+1. Add `XAI_API_KEY` to `.env` (server-side only)
+2. API routes (Hono server on port **43124** in dev, same process in production):
+   - `GET /api/voice/status` — whether x.ai is configured
+   - `POST /api/voice/token` — short-lived realtime client secret
+   - `POST /api/voice/interpret` — map freeform speech/text to bridge commands via ship AI
+3. Client prefers **x.ai realtime** when configured; otherwise **browser SpeechRecognition**; always falls back to **typed commands**
+4. HUD shows: `Voice: x.ai connected` / `browser speech fallback` / `text commands only`
+
+Without `XAI_API_KEY`, voice mock + browser speech + text still work.
 
 ### Planet textures (Fal.ai)
 
@@ -73,7 +85,7 @@ See `.env.example`:
 |----------|---------|
 | `VITE_CONVEX_URL` | Convex client URL |
 | `CONVEX_DEPLOY_KEY` | CI / Render Convex deploy |
-| `XAI_API_KEY` | x.ai Voice (future) |
+| `XAI_API_KEY` | x.ai Voice token + ship AI interpret (server only) |
 | `FAL_KEY` | Fal.ai planet textures (server/worker only) |
 | `TELEGRAM_BOT_TOKEN` | Telegram bot + Mini App |
 | `VITE_APP_URL` | Public URL for Telegram menu button |
@@ -82,14 +94,36 @@ Never commit real keys.
 
 ## Deploy on Render
 
-### Static site (frontend)
+This repo ships a **Node web service** (not static-only) so API keys stay server-side.
 
-1. Create a **Static Site** on Render
-2. Build command: `npm install && npm run build`
-3. Publish directory: `dist`
-4. Environment: `VITE_CONVEX_URL`, `VITE_APP_URL`
+### Option A — Blueprint (`render.yaml`)
 
-### Convex
+1. Push repo to Origin/GitHub
+2. In Render: **New → Blueprint** and point at this repo
+3. Set secret env vars in the dashboard: `FAL_KEY`, `XAI_API_KEY`, optional `TELEGRAM_BOT_TOKEN`, `VITE_APP_URL`
+
+### Option B — Manual web service
+
+| Setting | Value |
+|---------|-------|
+| Runtime | Node |
+| Build command | `npm install && npm run build` |
+| Start command | `npm start` |
+| Health check | `/api/health` |
+
+**Environment variables (Render dashboard):**
+
+| Variable | Required | Purpose |
+|----------|----------|---------|
+| `FAL_KEY` | No | Fal planet textures via `/api/sector-art` |
+| `XAI_API_KEY` | No | x.ai voice token + ship AI interpret |
+| `VITE_APP_URL` | No | Public URL for Telegram Mini App menu |
+| `TELEGRAM_BOT_TOKEN` | No | Future bot webhooks |
+| `PORT` | Auto | Render sets this automatically |
+
+The service serves the Vite build from `dist/` and exposes `/api/*` on the same origin.
+
+### Convex (optional)
 
 1. Run `npx convex deploy` in CI or locally
 2. Set `CONVEX_DEPLOY_KEY` in Render (if using automated deploy)
@@ -106,17 +140,18 @@ Browser fallback works for judges without Telegram — a banner explains preview
 
 ```
 convex/           Backend schema, command resolver, runs API
-server/           Vite middleware for /api/sector-art (FAL_KEY)
-shared/           Fal + sector generation logic (client + worker)
+server/           Hono API + production static server (Fal, x.ai)
+shared/           Fal, voice, sector generation, command interpreter
 src/
   components/     R3F scene + HUD overlay
   hooks/          Telegram WebApp bootstrap
   lib/
     game/         Local fallback client + command resolver
-    voice/        x.ai / speech stubs + command bus
+    voice/        x.ai realtime engine, browser speech, interpret client
     assets/       Fal client wrapper (generateSectorArt)
     sector/       Browser-safe sector package stub
 worker/           Daytona pipeline + runnable CLI (worker/README.md)
+render.yaml       Render blueprint
 ```
 
 ## Hackathon ambition tiers
@@ -138,7 +173,7 @@ worker/           Daytona pipeline + runnable CLI (worker/README.md)
 
 - [ ] Wire Convex live (`npx convex dev`, replace local client)
 - [ ] Telegram Mini App menu + theme sync polish
-- [ ] x.ai Voice realtime command stream
+- [x] x.ai Voice realtime command stream + interpret fallback
 - [ ] Leaderboard panel from `getLeaderboard`
 
 ### Stretch (if time remains)
@@ -152,9 +187,13 @@ worker/           Daytona pipeline + runnable CLI (worker/README.md)
 
 | Command | Description |
 |---------|-------------|
-| `npm run dev` | Vite dev server on port 43123 |
-| `npm run build` | Production build |
-| `npm run preview` | Preview production build |
+| `npm run dev` | API server (43124) + Vite (43123) with `/api` proxy |
+| `npm run dev:vite` | Frontend only (needs `npm run dev:api` separately) |
+| `npm run dev:api` | Hono API only on port 43124 |
+| `npm run build` | Typecheck + Vite production build |
+| `npm start` | Production server (static `dist/` + `/api/*`) |
+| `npm run preview` | Build + API + Vite preview |
+| `npm run worker:sector` | Local sector JSON CLI |
 | `npm run convex:dev` | Start Convex dev sync |
 
 ## License
