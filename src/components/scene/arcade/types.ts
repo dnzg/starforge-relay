@@ -5,19 +5,32 @@ export interface Vec2 {
   z: number;
 }
 
+export type ProjectileOwner = "player" | "enemy";
+
 export interface Projectile {
   id: number;
   position: Vec2;
   velocity: Vec2;
   ttl: number;
+  owner: ProjectileOwner;
 }
 
 export interface Enemy {
   id: number;
   position: Vec2;
+  rotation: number;
   hp: number;
   speed: number;
   strafePhase: number;
+  fireCooldown: number;
+}
+
+export interface ExplosionSlot {
+  active: boolean;
+  x: number;
+  z: number;
+  age: number;
+  duration: number;
 }
 
 export interface PlayerState {

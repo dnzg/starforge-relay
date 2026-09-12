@@ -16,6 +16,17 @@ const INITIAL: ArcadeInputState = {
   firePressed: false,
 };
 
+function isTypingTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  const tag = target.tagName;
+  if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return true;
+  return target.isContentEditable;
+}
+
+function isCanvasTarget(target: EventTarget | null): boolean {
+  return target instanceof Element && Boolean(target.closest("canvas"));
+}
+
 export function useArcadeInput(enabled: boolean) {
   const keysRef = useRef({
     up: false,
@@ -71,6 +82,7 @@ export function useArcadeInput(enabled: boolean) {
     if (!enabled) return;
 
     const onKeyDown = (event: KeyboardEvent) => {
+      if (isTypingTarget(event.target)) return;
       switch (event.code) {
         case "ArrowUp":
         case "KeyW":
@@ -137,7 +149,8 @@ export function useArcadeInput(enabled: boolean) {
       recompute();
     };
 
-    const onMouseDown = () => {
+    const onMouseDown = (event: MouseEvent) => {
+      if (!isCanvasTarget(event.target)) return;
       keysRef.current.fire = true;
       recompute();
     };

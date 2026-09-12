@@ -1,6 +1,7 @@
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { ArcadeScene } from "./components/scene/ArcadeScene";
 import { HUD } from "./components/hud/HUD";
+import { GarageOverlay } from "./components/hud/GarageOverlay";
 import { useTelegramWebApp } from "./hooks/useTelegramWebApp";
 import { useArcadeInput } from "./hooks/useArcadeInput";
 import { GameProvider, useGame } from "./providers/GameProvider";
@@ -9,11 +10,13 @@ function GameShell() {
   const {
     run,
     hyperspaceActive,
+    skyTextureUrl,
     combatCallbacks,
     markPlanetTextureReady,
   } = useGame();
   const { isTelegram } = useTelegramWebApp();
-  const combatEnabled = Boolean(run && run.status === "active");
+  const [garageOpen, setGarageOpen] = useState(false);
+  const combatEnabled = Boolean(run && run.status === "active") && !garageOpen;
   const arcadeInput = useArcadeInput(combatEnabled);
   const getInputRef = useRef(arcadeInput.getState);
   getInputRef.current = arcadeInput.getState;
@@ -24,7 +27,7 @@ function GameShell() {
     <div className="app-shell">
       {!isTelegram ? (
         <div className="browser-banner">
-          Browser preview mode — open via Telegram Mini App for full WebApp integration.
+          Browser preview — open in Telegram for the Mini App.
         </div>
       ) : null}
 
@@ -33,6 +36,7 @@ function GameShell() {
           sectorSeed={run?.sectorSeed ?? 42}
           sectorKey={sectorKey}
           planetTextureUrl={run?.planetTextureUrl}
+          skyTextureUrl={skyTextureUrl}
           hyperspaceActive={hyperspaceActive}
           threatLevel={run?.threatLevel ?? 3}
           combatEnabled={combatEnabled}
@@ -43,7 +47,12 @@ function GameShell() {
         <HUD
           onTouchMove={arcadeInput.setTouchMove}
           onTouchFire={arcadeInput.setTouchFire}
+          garageOpen={garageOpen}
+          onGarageOpenChange={setGarageOpen}
         />
+        {garageOpen ? (
+          <GarageOverlay onClose={() => setGarageOpen(false)} />
+        ) : null}
       </div>
     </div>
   );

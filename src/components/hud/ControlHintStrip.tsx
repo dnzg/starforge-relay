@@ -4,14 +4,20 @@ interface ControlHintStripProps {
 }
 
 export function ControlHintStrip({ visible, onDismiss }: ControlHintStripProps) {
-  if (!visible) return null;
-
   return (
-    <div className="control-hint-strip">
+    <div
+      className={`control-hint-strip ${visible ? "" : "is-hidden"}`}
+      aria-hidden={!visible}
+    >
       <span>
-        WASD / Arrows fly · Shift boost · Space fire · Clear hostiles → Jump gate
+        W up · S down · A left · D right · Shift boost · Space fire
       </span>
-      <button type="button" className="control-hint-dismiss" onClick={onDismiss}>
+      <button
+        type="button"
+        className="control-hint-dismiss"
+        onClick={onDismiss}
+        tabIndex={visible ? 0 : -1}
+      >
         Dismiss
       </button>
     </div>
